@@ -8,10 +8,33 @@ interface AuthResponse {
   // Add other fields that your API might return
 }
 
+// Add connection check function
+const checkBackendConnection = async (): Promise<boolean> => {
+  try {
+    const response = await fetch('http://localhost:5002/', {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+    return response.ok;
+  } catch (error) {
+    console.error('Backend connection check failed:', error);
+    return false;
+  }
+};
+
 export const loginUser = async (email_raw: string, password_raw: string): Promise<AuthResponse> => {
   const email = email_raw.trim();
   const password = password_raw.trim();
+  
   try {
+    // Check if backend is running first
+    const isBackendRunning = await checkBackendConnection();
+    if (!isBackendRunning) {
+      throw new Error('Backend server is not running. Please start the backend server on port 5002.');
+    }
+
     const response = await fetch(`${API_BASE_URL}/login`, {
       method: 'POST',
       headers: {
@@ -29,6 +52,12 @@ export const loginUser = async (email_raw: string, password_raw: string): Promis
     return data; // Should contain token, userId, email etc.
   } catch (error: any) {
     console.error('Login API error:', error);
+    
+    // Provide more specific error messages
+    if (error.name === 'TypeError' && error.message.includes('fetch')) {
+      return { message: 'Cannot connect to server. Please ensure the backend is running on port 5002.' };
+    }
+    
     // Ensure a consistent error object structure
     return { message: error.message || 'An unknown error occurred during login.' };
   }
@@ -40,6 +69,12 @@ export const registerUser = async (email_raw: string, password_raw: string, name
   const name = name_raw?.trim();
   
   try {
+    // Check if backend is running first
+    const isBackendRunning = await checkBackendConnection();
+    if (!isBackendRunning) {
+      throw new Error('Backend server is not running. Please start the backend server on port 5002.');
+    }
+
     const requestBody: any = { email, password };
     if (name) {
       requestBody.name = name;
@@ -62,12 +97,24 @@ export const registerUser = async (email_raw: string, password_raw: string, name
     return data; 
   } catch (error: any) {
     console.error('Registration API error:', error);
+    
+    // Provide more specific error messages
+    if (error.name === 'TypeError' && error.message.includes('fetch')) {
+      return { message: 'Cannot connect to server. Please ensure the backend is running on port 5002.' };
+    }
+    
     return { message: error.message || 'An unknown error occurred during registration.' };
   }
 };
 
 export const deleteAccount = async (token: string): Promise<AuthResponse> => {
   try {
+    // Check if backend is running first
+    const isBackendRunning = await checkBackendConnection();
+    if (!isBackendRunning) {
+      throw new Error('Backend server is not running. Please start the backend server on port 5002.');
+    }
+
     const response = await fetch(`${API_BASE_URL}/account`, {
       method: 'DELETE',
       headers: {
@@ -84,6 +131,12 @@ export const deleteAccount = async (token: string): Promise<AuthResponse> => {
     return data; // Should contain a success message
   } catch (error: any) {
     console.error('Delete account API error:', error);
+    
+    // Provide more specific error messages
+    if (error.name === 'TypeError' && error.message.includes('fetch')) {
+      return { message: 'Cannot connect to server. Please ensure the backend is running on port 5002.' };
+    }
+    
     return { message: error.message || 'An unknown error occurred during account deletion.' };
   }
 };

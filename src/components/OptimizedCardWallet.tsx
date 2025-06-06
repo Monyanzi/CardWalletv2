@@ -85,7 +85,6 @@ const OptimizedCardWallet: React.FC = () => {
   const [expandedCategory, setExpandedCategoryInternal] = useState<string | null>(userExpandedCategory);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
-  const [showUserMenu, setShowUserMenu] = useState(false); // For the user dropdown menu
   const [showDeleteAccountConfirm, setShowDeleteAccountConfirm] = useState(false);
   const [isDeletingAccount, setIsDeletingAccount] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -279,15 +278,13 @@ const OptimizedCardWallet: React.FC = () => {
     setIsScanning(scanState);
   };
   
-  // handleOpenAuthModal, handleCloseAuthModal, handleUserChange removed as AuthModal is removed
-
+  // Simplified user icon click - just navigate to login if not authenticated
   const handleUserIconClick = () => {
     if (!auth.isAuthenticated) {
       navigate('/login');
     } else {
-      // Potentially navigate to a profile page in the future
-      // navigate('/profile');
-      console.log('User icon clicked while authenticated.');
+      // Show logout confirmation directly instead of a menu
+      setShowLogoutConfirm(true);
     }
   };
 
@@ -324,7 +321,6 @@ const OptimizedCardWallet: React.FC = () => {
 
   // Handler to open the delete account confirmation
   const handleDeleteAccountClick = () => {
-    setShowUserMenu(false); // Close user menu before showing dialog
     setShowDeleteAccountConfirm(true);
   };
 
@@ -357,12 +353,6 @@ const OptimizedCardWallet: React.FC = () => {
   const handleCancelDeleteAccount = () => {
     setShowDeleteAccountConfirm(false);
   };
-  
-  // handleAuthAction removed as AuthModal and its direct action handling are removed.
-  
-  // handleToggleAuthMode removed as AuthModal is removed
-  // simulateSync function has been removed as manual sync is now obsolete.
-  // The useCards hook handles data synchronization automatically based on authentication state.
   
   const simulateScan = async () => {
     setIsScanning(true);
@@ -449,8 +439,6 @@ const OptimizedCardWallet: React.FC = () => {
         </div>
       )}
 
-      {/* Original card list removed to prevent duplication */}
-
       <Suspense fallback={null}>
         {isAddingCard && (
           <OptimizedAddCardModal
@@ -466,8 +454,6 @@ const OptimizedCardWallet: React.FC = () => {
           />
         )}
       </Suspense>
-      
-      {/* AuthModal removed, users will be directed to /login or /register pages */}
       
       <Suspense fallback={null}>
         {selectedCard && (
@@ -491,8 +477,6 @@ const OptimizedCardWallet: React.FC = () => {
 
       {/* Main content area with padding for footer and search bar when visible */}
       <div className={`flex-1 px-4 overflow-y-auto ${savedShowSearch ? 'pb-36' : 'pb-16'}`}>
-
-
         {/* Card List */}
         <Suspense fallback={<div className="p-4 text-center">Loading cards...</div>}>
         {/* Empty space for feedback messages */}
@@ -556,44 +540,6 @@ const OptimizedCardWallet: React.FC = () => {
         showSearch={savedShowSearch}
         sortBy={sortBy}
       />
-
-      {/* User Menu Modal/Dropdown */}
-      {showUserMenu && auth.isAuthenticated && (
-        <div 
-          className="fixed inset-0 bg-black bg-opacity-50 z-40 flex items-center justify-center p-4" 
-          onClick={() => setShowUserMenu(false)} // Close on backdrop click
-        >
-          <div 
-            className="bg-white dark:bg-gray-800 p-5 rounded-lg shadow-xl w-full max-w-xs" 
-            onClick={(e) => e.stopPropagation()} // Prevent closing when clicking inside menu
-          >
-            <h3 className="text-xl font-semibold mb-4 text-gray-900 dark:text-gray-100 text-center">User Options</h3>
-            <button
-              onClick={() => {
-                setShowUserMenu(false); // Close menu
-                handleLogoutClick();    // Then proceed with logout (which shows another confirm dialog)
-              }}
-              className="w-full flex items-center justify-center gap-2 text-lg px-4 py-3 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 mb-3 transition-colors"
-            >
-              <LogOut size={20} />
-              Logout
-            </button>
-            <button
-              onClick={handleDeleteAccountClick} // This will show the delete account confirm dialog
-              className="w-full flex items-center justify-center gap-2 text-lg px-4 py-3 rounded-md hover:bg-red-100 dark:hover:bg-red-700 text-red-600 dark:text-red-300 hover:text-red-700 dark:hover:text-red-100 transition-colors"
-            >
-              <Trash2 size={20} />
-              Delete Account
-            </button>
-            <button
-              onClick={() => setShowUserMenu(false)}
-              className="w-full mt-4 text-lg px-4 py-2 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-400 transition-colors"
-            >
-              Cancel
-            </button>
-          </div>
-        </div>
-      )}
 
       {/* Logout Button - moved to top right corner */}
       {auth.isAuthenticated && (
