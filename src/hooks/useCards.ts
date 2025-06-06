@@ -199,43 +199,43 @@ export const useCards = () => {
             }
           }
         }
-      }
-    } else { // Unauthenticated user
-      if (typeof window !== 'undefined') {
-        try {
-          const localCardsJson = localStorage.getItem(LOCAL_UNAUTH_CARDS_KEY);
-          if (localCardsJson) {
-            try {
-              const localCards = JSON.parse(localCardsJson);
-              console.log('Unauthenticated: Loaded local cards:', localCards.length);
-              const normalizedLocalCards = localCards.map((card: any) => normalizeCardType(card));
-              setCards(normalizedLocalCards);
-            } catch (parseError) {
-              console.error('Unauthenticated: Error parsing local cards:', parseError);
-              localStorage.removeItem(LOCAL_UNAUTH_CARDS_KEY); // Clear corrupted data
+      } else { // Unauthenticated user
+        if (typeof window !== 'undefined') {
+          try {
+            const localCardsJson = localStorage.getItem(LOCAL_UNAUTH_CARDS_KEY);
+            if (localCardsJson) {
+              try {
+                const localCards = JSON.parse(localCardsJson);
+                console.log('Unauthenticated: Loaded local cards:', localCards.length);
+                const normalizedLocalCards = localCards.map((card: any) => normalizeCardType(card));
+                setCards(normalizedLocalCards);
+              } catch (parseError) {
+                console.error('Unauthenticated: Error parsing local cards:', parseError);
+                localStorage.removeItem(LOCAL_UNAUTH_CARDS_KEY); // Clear corrupted data
+                setCards([]);
+              }
+            } else {
+              console.log('Unauthenticated: No local cards found.');
               setCards([]);
             }
-          } else {
-            console.log('Unauthenticated: No local cards found.');
+          } catch (error) {
+            console.error('Unauthenticated: Error loading cards from local storage:', error);
+            setLoadError(error as Error);
             setCards([]);
           }
-        } catch (error) {
-          console.error('Unauthenticated: Error loading cards from local storage:', error);
-          setLoadError(error as Error);
+        } else {
+          // SSR fallback or environment without window
           setCards([]);
         }
-      } else {
-        // SSR fallback or environment without window
-        setCards([]);
       }
+    } catch (error) {
+      console.error('Error loading cards:', error);
+      setLoadError(error as Error);
+    } finally {
+      setIsLoading(false);
     }
-    setIsLoading(false);
-  } catch (error) {
-    console.error('Error loading cards:', error);
-    setLoadError(error as Error);
-    setIsLoading(false);
-  }
-}, [auth.isAuthenticated, auth.userId, auth.token, setCards, setLoadError, setIsLoading]);
+  }, [auth.isAuthenticated, auth.userId, auth.token, setCards, setLoadError, setIsLoading]);
+
   useEffect(() => {
     loadCards();
   }, [loadCards]);
