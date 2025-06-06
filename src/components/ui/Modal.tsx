@@ -1,0 +1,221 @@
+import React, { ReactNode, useEffect, useRef, useState } from 'react';
+import { X } from '../../utils/icons';
+import { useTheme } from '../../context/ThemeContext';
+import IconButton from './IconButton';
+import { createPortal } from 'react-dom';
+
+interface ModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  title?: string;
+  description?: string;
+  children: ReactNode;
+  footer?: ReactNode;
+  className?: string;
+  showCloseButton?: boolean;
+  initialFocusRef?: React.RefObject<HTMLElement>;
+  returnFocusRef?: React.RefObject<HTMLElement>;
+  onAnimationComplete?: () => void;
+}
+
+const Modal: React.FC<ModalProps> = ({
+  isOpen,
+  onClose,
+  title,
+  description,
+  children,
+  footer,
+  className = '',
+  showCloseButton = true,
+  initialFocusRef,
+  returnFocusRef,
+  onAnimationComplete,
+}) => {
+  const { darkMode } = useTheme();
+  const [mounted, setMounted] = useState(false);
+  
+  // References for accessibility
+  const modalRef = useRef<HTMLDivElement>(null);
+  const titleId = useRef(`modal-title-${Math.random().toString(36).substr(2, 9)}`);
+  const descriptionId = useRef(`modal-desc-${Math.random().toString(36).substr(2, 9)}`);
+  
+  // Reference to store the element that had focus before modal was opened
+  const previousActiveElement = useRef<Element | null>(null);
+  
+  useEffect(() => {
+    setMounted(true);
+    return () => setMounted(false);
+  }, []);
+
+  // Store previous active element and set focus when modal opens
+  useEffect(() => {
+    if (isOpen) {
+      previousActiveElement.current = document.activeElement;
+      
+      // Set focus to either the specified element or the first focusable element
+      setTimeout(() => {
+        if (initialFocusRef?.current) {
+          initialFocusRef.current.focus();
+        } else if (modalRef.current) {
+          const focusableEls = modalRef.current.querySelectorAll(
+            'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+          );
+          if (focusableEls.length > 0) {
+            (focusableEls[0] as HTMLElement).focus();
+          }
+        }
+      }, 50); // Small delay to ensure the modal is rendered
+      
+      // Prevent background scrolling
+      document.body.style.overflow = 'hidden';
+    } else if (previousActiveElement.current) {
+      // Return focus when modal closes
+      if (returnFocusRef?.current) {
+        returnFocusRef.current.focus();
+      } else if (previousActiveElement.current instanceof HTMLElement) {
+        previousActiveElement.current.focus();
+      }
+      
+      // Re-enable scrolling
+      document.body.style.overflow = '';
+    }
+    
+    // Call animation complete callback after opening animation
+    if (isOpen && onAnimationComplete) {
+      const timer = setTimeout(onAnimationComplete, 300);
+      return () => clearTimeout(timer);
+    }
+  }, [isOpen, initialFocusRef, returnFocusRef, onAnimationComplete]);
+  
+  // Handle escape key to close modal
+  useEffect(() => {
+    const handleEscKey = (event: KeyboardEvent) => {
+      if (isOpen && event.key === 'Escape') {
+        onClose();
+      }
+    };
+    
+    document.addEventListener('keydown', handleEscKey);
+    return () => document.removeEventListener('keydown', handleEscKey);
+  }, [isOpen, onClose]);
+  
+  // Focus trap inside modal
+  useEffect(() => {
+    if (!isOpen || !modalRef.current) return;
+    
+    const focusableSelector = 'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])';
+    const modalElement = modalRef.current;
+    
+    const handleTabKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Tab') return;
+      
+      const focusableElements = Array.from(
+        modalElement.querySelectorAll(focusableSelector)
+      ) as HTMLElement[];
+      
+      if (focusableElements.length === 0) return;
+      
+      const firstElement = focusableElements[0];
+      const lastElement = focusableElements[focusableElements.length - 1];
+      
+      if (e.shiftKey && document.activeElement === firstElement) {
+        e.preventDefault();
+        lastElement.focus();
+      } else if (!e.shiftKey && document.activeElement === lastElement) {
+        e.preventDefault();
+        firstElement.focus();
+      }
+    };
+    
+    document.addEventListener('keydown', handleTabKey);
+    return () => document.removeEventListener('keydown', handleTabKey);
+  }, [isOpen]);
+  
+  // Screen reader announcements
+  useEffect(() => {
+    if (isOpen) {
+      // Announce to screen readers that a modal has opened
+      const announcement = title 
+        ? `Modal opened: ${title}` 
+        : 'Modal opened';
+      
+      const ariaLive = document.createElement('div');
+      ariaLive.setAttribute('aria-live', 'polite');
+      ariaLive.setAttribute('class', 'sr-only');
+      ariaLive.textContent = announcement;
+      
+      document.body.appendChild(ariaLive);
+      
+      setTimeout(() => {
+        document.body.removeChild(ariaLive);
+      }, 1000);
+    }
+  }, [isOpen, title]);
+  
+  // Click outside to close
+  const handleBackdropClick = (e: React.MouseEvent) => {
+    if (e.target === e.currentTarget) {
+      onClose();
+    }
+  };
+  
+  if (!isOpen) return null;
+  if (!mounted) return null;
+  
+  const modalContent = (
+    <div 
+      className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center p-4 z-50" 
+      onClick={handleBackdropClick}
+      aria-modal="true"
+      role="dialog"
+      aria-labelledby={title ? titleId.current : undefined}
+      aria-describedby={description ? descriptionId.current : undefined}
+    >
+      <div 
+        ref={modalRef}
+        className={`relative w-full max-w-md max-h-[90vh] overflow-hidden rounded-lg shadow-xl ${darkMode ? 'bg-gray-800 text-gray-100' : 'bg-white text-gray-800'} ${className} animate-fade-in`}
+      >
+        {/* Modal Header */}
+        {(title || showCloseButton) && (
+          <div className={`p-4 flex items-center justify-between ${darkMode ? 'border-gray-700' : 'border-gray-200'} border-b`}>
+            {title && <h3 id={titleId.current} className="text-lg font-semibold">{title}</h3>}
+            {showCloseButton && (
+              <IconButton
+                icon={X}
+                onClick={onClose}
+                variant="secondary"
+                size="sm"
+                label="Close"
+                aria-label="Close modal"
+              />
+            )}
+          </div>
+        )}
+        
+        {/* Screen reader description if provided */}
+        {description && (
+          <div id={descriptionId.current} className="sr-only">
+            {description}
+          </div>
+        )}
+        
+        {/* Modal Content */}
+        <div className="overflow-y-auto max-h-[calc(100vh-12rem)]">
+          {children}
+        </div>
+        
+        {/* Modal Footer */}
+        {footer && (
+          <div className={`p-4 ${darkMode ? 'border-gray-700 bg-gray-800' : 'border-gray-200 bg-white'} border-t sticky bottom-0`}>
+            {footer}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+  
+  // Use portal to render modal at the body level to avoid stacking context issues
+  return createPortal(modalContent, document.body);
+};
+
+export default Modal;
