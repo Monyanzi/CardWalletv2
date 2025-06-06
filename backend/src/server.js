@@ -1,3 +1,5 @@
+require('dotenv').config(); // Load environment variables from .env file
+
 const express = require('express');
 const cors = require('cors');
 
@@ -24,10 +26,10 @@ app.get('/', (req, res) => {
 });
 
 // Define the port
-const PORT = process.env.PORT || 5002; // Temporarily changed for EADDRINUSE diagnosis // Use 5001 to avoid frontend conflicts
+const PORT = process.env.PORT || '5002'; // Default to string '5002' if not set
 
 // Start the server
-app.listen(PORT, () => {
+app.listen(parseInt(PORT, 10), () => {
   console.log(`Server running on port ${PORT}`);
 });
 
