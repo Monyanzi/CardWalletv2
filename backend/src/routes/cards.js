@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const auth = require('../middleware/auth'); // JWT authentication middleware
 const db = require('../models/db'); // SQLite database connection
+const { handleDbError, sendNotFoundResponse } = require('../utils/responseHandlers');
 
 // --- Helper function to build SET clause for UPDATE --- 
 const buildUpdateSetClause = (fields) => {
@@ -47,8 +48,7 @@ router.post('/', auth, (req, res) => {
 
   db.run(sql, params, function (err) {
     if (err) {
-      console.error('Error creating card:', err.message);
-      return res.status(500).json({ message: 'Failed to create card.' });
+      return handleDbError(res, err, 'Failed to create card.', 'Card creation DB error');
     }
     res.status(201).json({ id: this.lastID, userId, ...req.body });
   });
@@ -59,8 +59,7 @@ router.get('/', auth, (req, res) => {
   const userId = req.user.id;
   db.all('SELECT * FROM Cards WHERE userId = ?', [userId], (err, rows) => {
     if (err) {
-      console.error('Error fetching cards:', err.message);
-      return res.status(500).json({ message: 'Failed to retrieve cards.' });
+      return handleDbError(res, err, 'Failed to retrieve cards.', 'Fetch all cards DB error');
     }
     res.json(rows);
   });
@@ -73,11 +72,10 @@ router.get('/:id', auth, (req, res) => {
 
   db.get('SELECT * FROM Cards WHERE id = ? AND userId = ?', [cardId, userId], (err, row) => {
     if (err) {
-      console.error('Error fetching card:', err.message);
-      return res.status(500).json({ message: 'Failed to retrieve card.' });
+      return handleDbError(res, err, 'Failed to retrieve card.', 'Fetch card by ID DB error');
     }
     if (!row) {
-      return res.status(404).json({ message: 'Card not found or access denied.' });
+      return sendNotFoundResponse(res, 'Card not found or access denied.');
     }
     res.json(row);
   });
@@ -112,17 +110,16 @@ router.put('/:id', auth, (req, res) => {
 
   db.run(sql, params, function (err) {
     if (err) {
-      console.error('Error updating card:', err.message);
-      return res.status(500).json({ message: 'Failed to update card.' });
+      return handleDbError(res, err, 'Failed to update card.', 'Update card DB error');
     }
     if (this.changes === 0) {
-      return res.status(404).json({ message: 'Card not found, access denied, or no changes made.' });
+      return sendNotFoundResponse(res, 'Card not found, access denied, or no changes made.');
     }
     // Fetch and return the updated card
     db.get('SELECT * FROM Cards WHERE id = ? AND userId = ?', [cardId, userId], (fetchErr, row) => {
       if (fetchErr) {
-        console.error('Error fetching updated card:', fetchErr.message);
-        return res.status(500).json({ message: 'Card updated, but failed to retrieve.' });
+        // If the update succeeded but fetching the result failed, we still need to indicate a server error for the fetch part.
+        return handleDbError(res, fetchErr, 'Card updated, but failed to retrieve the updated card.', 'Fetch updated card DB error');
       }
       res.json(row);
     });
@@ -136,11 +133,10 @@ router.delete('/:id', auth, (req, res) => {
 
   db.run('DELETE FROM Cards WHERE id = ? AND userId = ?', [cardId, userId], function (err) {
     if (err) {
-      console.error('Error deleting card:', err.message);
-      return res.status(500).json({ message: 'Failed to delete card.' });
+      return handleDbError(res, err, 'Failed to delete card.', 'Delete card DB error');
     }
     if (this.changes === 0) {
-      return res.status(404).json({ message: 'Card not found or access denied.' });
+      return sendNotFoundResponse(res, 'Card not found or access denied.');
     }
     res.json({ message: 'Card deleted successfully.' });
   });

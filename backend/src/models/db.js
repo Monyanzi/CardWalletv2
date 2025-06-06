@@ -4,13 +4,14 @@ const bcrypt = require('bcryptjs');
 const path = require('path');
 
 // Determine the correct path for the database file
-const dbPath = path.resolve(__dirname, '..', '..', 'database.sqlite');
+const dbName = process.env.DB_NAME || 'database.sqlite';
+const dbPath = path.resolve(__dirname, '..', '..', dbName);
 
 const db = new sqlite3.Database(dbPath, (err) => {
   if (err) {
     console.error('Error opening database', err.message);
   } else {
-    console.log('Connected to the SQLite database.');
+    // console.log('Connected to the SQLite database.'); // Quieter for library use
     db.run('PRAGMA foreign_keys = ON;', (pragmaErr) => {
       if (pragmaErr) {
         console.error('Failed to enable foreign key support:', pragmaErr.message);
@@ -29,7 +30,7 @@ const initDatabase = () => {
       )
     `, (err) => {
       if (err) console.error('Error creating Users table', err.message);
-      else console.log('Users table created or already exists.');
+      // else console.log('Users table created or already exists.'); // Quieter for library use
     });
 
     db.run(`
@@ -65,33 +66,33 @@ const initDatabase = () => {
       )
     `, (err) => {
       if (err) console.error('Error creating Cards table', err.message);
-      else console.log('Cards table created or already exists.');
+      // else console.log('Cards table created or already exists.'); // Quieter for library use
     });
   });
 };
 
 // Sample card data (using original frontend field names)
 const SAMPLE_CARDS = [
-  { id: 1, name: 'Alex Chen', company: 'TechSphere Inc.', position: 'Product Manager', type: 'business', cardColor: '#0070d1', logo: 'placeholder', identifier: 'TSI10293', email: 'alex@techsphere.com', phone: '+1 (415) 555-1234', mobile: '+1 (415) 555-9876', website: 'www.techsphere.com', address: '123 Innovation Drive, San Francisco, CA 94105', linkedin: 'linkedin.com/in/alexchen', verified: true, photo: 'placeholder', isMyCard: true },
-  { id: 2, name: 'Sarah Johnson', company: 'Design Forward', position: 'Creative Director', type: 'business', cardColor: '#2c3e50', logo: 'placeholder', identifier: 'DF87542', email: 'sarah.j@designforward.com', phone: '+1 (628) 555-7890', mobile: '+1 (628) 555-4321', website: 'www.designforward.com', address: '456 Creative Way, San Francisco, CA 94107', linkedin: 'linkedin.com/in/sarahjohnsondesign', verified: true, photo: null, isMyCard: false },
-  { id: 3, name: 'Coffee Club', company: 'Seattle Coffee Co.', type: 'reward', cardColor: '#16a085', logo: 'placeholder', identifier: 'SCC-R78901', verified: true, barcode: '978020137962', barcodeType: 'code128', photo: null, isMyCard: false },
-  { id: 4, name: 'Book Lovers', company: 'City Books', type: 'reward', cardColor: '#8e44ad', logo: 'placeholder', identifier: 'CB-24680', verified: true, barcode: '9780201379625', barcodeType: 'qr', photo: null, isMyCard: false },
-  { id: 5, name: 'Fitness Plus', company: 'FitLife Center', type: 'membership', cardColor: '#e60012', logo: 'placeholder', identifier: 'FL-13579', verified: true, barcode: '9780201379628', barcodeType: 'code128', website: 'www.fitlifecenter.com', photo: null, expiry: '05/2026', isMyCard: false },
-  { id: 6, name: 'Global Exchange', company: 'International Bank', type: 'other', cardColor: '#f39c12', logo: 'placeholder', identifier: 'IB-000789', verified: true, balance: '$2,345.50', photo: null, isMyCard: false },
-  { id: 8, name: 'City Transit Card', company: 'Metro Transport', type: 'other', cardColor: '#0070d1', logo: 'placeholder', identifier: 'MT-56473', verified: true, barcode: '9780201379629', barcodeType: 'code128', balance: '$37.25', expiry: '12/2025', photo: null, isMyCard: false },
-  { id: 11, name: 'Summer Music Festival', company: 'LiveSound Events', type: 'ticket', cardColor: '#e60012', logo: 'placeholder', identifier: 'LSE-92847', verified: true, barcode: '9780201379632', barcodeType: 'qr', date: 'June 18, 2025', time: '6:30 PM', seat: 'Section A, Row 12, Seat 34', venue: 'Oceanside Amphitheater', photo: null, isMyCard: false },
-  { id: 12, name: 'Robert Zhang', company: 'Quantum Computing', position: 'Senior Engineer', type: 'business', cardColor: '#8e44ad', logo: 'placeholder', identifier: 'QC-10045', email: 'robert@quantumcomputing.com', phone: '+1 (650) 555-3456', mobile: '+1 (650) 555-7890', website: 'www.quantumcomputing.com', address: '789 Future Lane, Palo Alto, CA 94301', linkedin: 'linkedin.com/in/robertzhang', verified: true, photo: null, isMyCard: false },
-  { id: 13, name: 'Emma Williams', company: 'Green Energy Solutions', position: 'Sustainability Consultant', type: 'business', cardColor: '#16a085', logo: 'placeholder', identifier: 'GES-78901', email: 'emma@greenenergy.com', phone: '+1 (510) 555-4567', mobile: '+1 (510) 555-8901', website: 'www.greenenergysolutions.com', address: '101 Renewable Way, Oakland, CA 94612', linkedin: 'linkedin.com/in/emmawilliams', verified: true, photo: null, isMyCard: false },
-  { id: 14, name: 'Michael Patel', company: 'Global Finance Group', position: 'Investment Advisor', type: 'business', cardColor: '#f39c12', logo: 'placeholder', identifier: 'GFG-24680', email: 'michael@globalfinance.com', phone: '+1 (415) 555-5678', mobile: '+1 (415) 555-9012', website: 'www.globalfinancegroup.com', address: '222 Market Street, San Francisco, CA 94111', linkedin: 'linkedin.com/in/michaelpatel', verified: true, photo: null, isMyCard: false },
-  { id: 15, name: 'Jessica Kim', company: 'Creative Solutions', position: 'Marketing Director', type: 'business', cardColor: '#e60012', logo: 'placeholder', identifier: 'CS-13579', email: 'jessica@creativesolutions.com', phone: '+1 (213) 555-6789', mobile: '+1 (213) 555-0123', website: 'www.creativesolutions.com', address: '333 Design Ave, Los Angeles, CA 90028', linkedin: 'linkedin.com/in/jessicakim', verified: true, photo: null, isMyCard: false }
+  { name: 'Alex Chen', company: 'TechSphere Inc.', position: 'Product Manager', type: 'business', cardColor: '#0070d1', logo: 'placeholder', identifier: 'TSI10293', email: 'alex@techsphere.com', phone: '+1 (415) 555-1234', mobile: '+1 (415) 555-9876', website: 'www.techsphere.com', address: '123 Innovation Drive, San Francisco, CA 94105', linkedin: 'linkedin.com/in/alexchen', verified: true, photo: 'placeholder', isMyCard: true },
+  { name: 'Sarah Johnson', company: 'Design Forward', position: 'Creative Director', type: 'business', cardColor: '#2c3e50', logo: 'placeholder', identifier: 'DF87542', email: 'sarah.j@designforward.com', phone: '+1 (628) 555-7890', mobile: '+1 (628) 555-4321', website: 'www.designforward.com', address: '456 Creative Way, San Francisco, CA 94107', linkedin: 'linkedin.com/in/sarahjohnsondesign', verified: true, photo: null, isMyCard: false },
+  { name: 'Coffee Club', company: 'Seattle Coffee Co.', type: 'reward', cardColor: '#16a085', logo: 'placeholder', identifier: 'SCC-R78901', verified: true, barcode: '978020137962', barcodeType: 'code128', photo: null, isMyCard: false },
+  { name: 'Book Lovers', company: 'City Books', type: 'reward', cardColor: '#8e44ad', logo: 'placeholder', identifier: 'CB-24680', verified: true, barcode: '9780201379625', barcodeType: 'qr', photo: null, isMyCard: false },
+  { name: 'Fitness Plus', company: 'FitLife Center', type: 'membership', cardColor: '#e60012', logo: 'placeholder', identifier: 'FL-13579', verified: true, barcode: '9780201379628', barcodeType: 'code128', website: 'www.fitlifecenter.com', photo: null, expiry: '05/2026', isMyCard: false },
+  { name: 'Global Exchange', company: 'International Bank', type: 'other', cardColor: '#f39c12', logo: 'placeholder', identifier: 'IB-000789', verified: true, balance: '$2,345.50', photo: null, isMyCard: false },
+  { name: 'City Transit Card', company: 'Metro Transport', type: 'other', cardColor: '#0070d1', logo: 'placeholder', identifier: 'MT-56473', verified: true, barcode: '9780201379629', barcodeType: 'code128', balance: '$37.25', expiry: '12/2025', photo: null, isMyCard: false },
+  { name: 'Summer Music Festival', company: 'LiveSound Events', type: 'ticket', cardColor: '#e60012', logo: 'placeholder', identifier: 'LSE-92847', verified: true, barcode: '9780201379632', barcodeType: 'qr', date: 'June 18, 2025', time: '6:30 PM', seat: 'Section A, Row 12, Seat 34', venue: 'Oceanside Amphitheater', photo: null, isMyCard: false },
+  { name: 'Robert Zhang', company: 'Quantum Computing', position: 'Senior Engineer', type: 'business', cardColor: '#8e44ad', logo: 'placeholder', identifier: 'QC-10045', email: 'robert@quantumcomputing.com', phone: '+1 (650) 555-3456', mobile: '+1 (650) 555-7890', website: 'www.quantumcomputing.com', address: '789 Future Lane, Palo Alto, CA 94301', linkedin: 'linkedin.com/in/robertzhang', verified: true, photo: null, isMyCard: false },
+  { name: 'Emma Williams', company: 'Green Energy Solutions', position: 'Sustainability Consultant', type: 'business', cardColor: '#16a085', logo: 'placeholder', identifier: 'GES-78901', email: 'emma@greenenergy.com', phone: '+1 (510) 555-4567', mobile: '+1 (510) 555-8901', website: 'www.greenenergysolutions.com', address: '101 Renewable Way, Oakland, CA 94612', linkedin: 'linkedin.com/in/emmawilliams', verified: true, photo: null, isMyCard: false },
+  { name: 'Michael Patel', company: 'Global Finance Group', position: 'Investment Advisor', type: 'business', cardColor: '#f39c12', logo: 'placeholder', identifier: 'GFG-24680', email: 'michael@globalfinance.com', phone: '+1 (415) 555-5678', mobile: '+1 (415) 555-9012', website: 'www.globalfinancegroup.com', address: '222 Market Street, San Francisco, CA 94111', linkedin: 'linkedin.com/in/michaelpatel', verified: true, photo: null, isMyCard: false },
+  { name: 'Jessica Kim', company: 'Creative Solutions', position: 'Marketing Director', type: 'business', cardColor: '#e60012', logo: 'placeholder', identifier: 'CS-13579', email: 'jessica@creativesolutions.com', phone: '+1 (213) 555-6789', mobile: '+1 (213) 555-0123', website: 'www.creativesolutions.com', address: '333 Design Ave, Los Angeles, CA 90028', linkedin: 'linkedin.com/in/jessicakim', verified: true, photo: null, isMyCard: false }
 ];
 
 const seedCardsForUser = (userId) => {
   if (!SAMPLE_CARDS || SAMPLE_CARDS.length === 0) {
-    console.log('No sample cards to seed.');
+    console.log('No sample cards to seed.'); // This can be useful feedback
     return;
   }
-  console.log(`Seeding ${SAMPLE_CARDS.length} cards for user ID: ${userId}...`);
+  // console.log(`Seeding ${SAMPLE_CARDS.length} cards for user ID: ${userId}...`); // Quieter for library use, CLI can log this.
   const sql = `INSERT INTO Cards (
     userId, name, isMyCard, cardType, companyName, identifier, position, email, phone, mobile, 
     website, address, linkedinUrl, cardColor, logo, notes, verified, barcode, barcodeType, 
@@ -130,16 +131,16 @@ const seedCardsForUser = (userId) => {
     db.run(sql, params, function(err) {
       if (err) {
         console.error(`Error inserting card '${card.name}':`, err.message);
-      } else {
-        console.log(`Card '${card.name}' (Original ID: ${card.id}) inserted with new ID: ${this.lastID} for user ${userId}`);
-      }
+      } // else {
+        // console.log(`Card '${card.name}' (Original ID: ${card.id}) inserted with new ID: ${this.lastID} for user ${userId}`); // Quieter
+      // }
     });
   });
-  console.log('Card seeding process initiated. Check logs for details.');
+  // console.log('Card seeding process initiated. Check logs for details.'); // Quieter
 };
 
 const seedDatabase = async () => {
-  console.log('Starting database seed process...');
+  // console.log('Starting database seed process...'); // CLI can log this
   try {
     const legacyEmail = 'legacy-user@example.com';
     const legacyPassword = 'password123';
@@ -153,7 +154,7 @@ const seedDatabase = async () => {
           return reject(err);
         }
         if (userRow) {
-          console.log('Legacy user already exists. Seeding cards for existing legacy user.');
+          // console.log('Legacy user already exists. Seeding cards for existing legacy user.'); // Quieter
           seedCardsForUser(userRow.id);
           resolve();
         } else {
@@ -163,7 +164,7 @@ const seedDatabase = async () => {
               return reject(err);
             }
             const legacyUserId = this.lastID;
-            console.log(`Legacy user created with ID: ${legacyUserId}`);
+            // console.log(`Legacy user created with ID: ${legacyUserId}`); // Quieter
             seedCardsForUser(legacyUserId);
             resolve();
           });
@@ -180,23 +181,20 @@ const seedDatabase = async () => {
 if (require.main === module) {
   const command = process.argv[2];
   if (command === 'init') {
-    console.log('Initializing database schema...');
+    console.log('CLI: Initializing database schema...');
     initDatabase();
   } else if (command === 'seed') {
-    console.log('Seeding database with legacy user and sample cards...');
+    console.log('CLI: Seeding database with legacy user and sample cards...');
+    console.log(`CLI: Seeding ${SAMPLE_CARDS.length} cards for legacy user...`); // Added detail for CLI
     seedDatabase()
-      .then(() => console.log('Database seeding process completed successfully.'))
+      .then(() => console.log('CLI: Database seeding process completed successfully.'))
       .catch(err => console.error('Database seeding failed:', err))
       .finally(() => {
-        // db.close(err => { // Optionally close DB if script is standalone and all ops are done
-        //   if (err) console.error('Error closing database', err.message);
-        //   else console.log('Database connection closed after seeding.');
-        // });
       });
   } else if (command) {
     console.log(`Unknown command: ${command}. Available commands: init, seed`);
   } else {
-    console.log('No command provided. Available commands: init, seed. Exporting db module for application use.');
+    // console.log('No command provided. Available commands: init, seed. Exporting db module for application use.'); // Quieter when used as module
   }
 }
 

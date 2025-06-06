@@ -3,11 +3,16 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const db = require('../models/db'); // SQLite database connection
 const authMiddleware = require('../middleware/auth'); // Authentication middleware
+const { handleDbError, sendNotFoundResponse } = require('../utils/responseHandlers');
 
 const router = express.Router();
 
-// In a real application, use an environment variable for the JWT secret!
-const JWT_SECRET = 'your-super-secret-and-long-jwt-secret-key'; 
+// Use an environment variable for the JWT secret
+const JWT_SECRET = process.env.JWT_SECRET || 'default-fallback-secret-key';
+if (JWT_SECRET === 'default-fallback-secret-key' && process.env.NODE_ENV !== 'test') {
+  console.warn('Security Warning: JWT_SECRET is using a default fallback value. Set a strong secret in your .env file for production.');
+}
+
 
 // POST /api/auth/register
 router.post('/register', async (req, res) => {
@@ -26,11 +31,10 @@ router.post('/register', async (req, res) => {
     // Check if user already exists
     db.get('SELECT email FROM Users WHERE email = ?', [email], async (err, row) => {
       if (err) {
-        console.error('Database error during registration check:', err.message);
-        return res.status(500).json({ message: 'Server error during registration.' });
+        return handleDbError(res, err, 'Server error during registration check.', 'Registration check DB error');
       }
       if (row) {
-        return res.status(400).json({ message: 'User with this email already exists.' });
+        return res.status(400).json({ message: 'User with this email already exists.' }); // Specific message, not a generic "not found"
       }
 
       // Hash password
@@ -40,15 +44,16 @@ router.post('/register', async (req, res) => {
       // Store user
       db.run('INSERT INTO Users (email, passwordHash) VALUES (?, ?)', [email, passwordHash], function (err) {
         if (err) {
-          console.error('Database error during user insertion:', err.message);
-          return res.status(500).json({ message: 'Could not register user.' });
+          return handleDbError(res, err, 'Could not register user.', 'User insertion DB error');
         }
         res.status(201).json({ message: 'User registered successfully.', userId: this.lastID });
       });
     });
   } catch (error) {
-    console.error('Server error during registration:', error.message);
-    res.status(500).json({ message: 'Server error.' });
+    // This catch block is for errors in the async operations before the db callback (e.g. bcrypt.genSalt)
+    // or if an error is thrown synchronously within the try block.
+    console.error('Server error during registration process:', error.message);
+    res.status(500).json({ message: 'Server error during registration process.' });
   }
 });
 
@@ -62,10 +67,10 @@ router.post('/login', (req, res) => {
 
   db.get('SELECT * FROM Users WHERE email = ?', [email], async (err, user) => {
     if (err) {
-      console.error('Database error during login:', err.message);
-      return res.status(500).json({ message: 'Server error during login.' });
+      return handleDbError(res, err, 'Server error during login.', 'Login DB error');
     }
     if (!user) {
+      // Using 400 for "invalid credentials" is common, rather than 404
       return res.status(400).json({ message: 'Invalid credentials. User not found.' });
     }
 
@@ -114,28 +119,27 @@ router.delete('/account', authMiddleware, async (req, res) => {
     // Step 1: Delete user's cards
     db.run('DELETE FROM Cards WHERE userId = ?', [userId], function (err) {
       if (err) {
-        console.error('Database error during card deletion:', err.message);
-        return res.status(500).json({ message: 'Could not delete user cards.' });
+        return handleDbError(res, err, 'Could not delete user cards.', 'Card deletion DB error');
       }
-      console.log(`Deleted ${this.changes} cards for user ${userId}`);
+      console.log(`Deleted ${this.changes} cards for user ${userId}`); // Keep this log for now
 
       // Step 2: Delete the user
       db.run('DELETE FROM Users WHERE id = ?', [userId], function (err) {
         if (err) {
-          console.error('Database error during user deletion:', err.message);
           // Potentially, cards were deleted but user was not. This is a partial failure.
-          return res.status(500).json({ message: 'Could not delete user account after deleting cards.' });
+          return handleDbError(res, err, 'Could not delete user account after deleting cards.', 'User deletion DB error');
         }
         if (this.changes === 0) {
           // This case might occur if the user was already deleted by some other means but token was still valid
-          return res.status(404).json({ message: 'User not found for deletion.' });
+          return sendNotFoundResponse(res, 'User not found for deletion.');
         }
         res.status(200).json({ message: 'Account and associated cards deleted successfully.' });
       });
     });
   } catch (error) {
-    console.error('Server error during account deletion:', error.message);
-    res.status(500).json({ message: 'Server error during account deletion.' });
+    // This catch block is for errors in the async operations before the db callback
+    console.error('Server error during account deletion process:', error.message);
+    res.status(500).json({ message: 'Server error during account deletion process.' });
   }
 });
 
