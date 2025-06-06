@@ -160,7 +160,7 @@ const RegisterForm: React.FC<RegisterFormProps> = ({ onSubmit, isLoading, error 
           aria-live="assertive"
         >
           <div className="flex items-center">
-            <AlertCircle className="mr-2" size={16} />
+            <AlertCircle className="mr-2\" size={16} />
             <span>{error}</span>
           </div>
         </div>
