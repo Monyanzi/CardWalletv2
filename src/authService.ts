@@ -34,16 +34,23 @@ export const loginUser = async (email_raw: string, password_raw: string): Promis
   }
 };
 
-export const registerUser = async (email_raw: string, password_raw: string): Promise<AuthResponse> => {
+export const registerUser = async (email_raw: string, password_raw: string, name_raw?: string): Promise<AuthResponse> => {
   const email = email_raw.trim();
   const password = password_raw.trim();
+  const name = name_raw?.trim();
+  
   try {
+    const requestBody: any = { email, password };
+    if (name) {
+      requestBody.name = name;
+    }
+    
     const response = await fetch(`${API_BASE_URL}/register`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ email, password }),
+      body: JSON.stringify(requestBody),
     });
 
     const data: AuthResponse = await response.json();

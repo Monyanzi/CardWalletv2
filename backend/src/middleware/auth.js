@@ -1,8 +1,11 @@
 const jwt = require('jsonwebtoken');
 
-// In a real application, use an environment variable for the JWT secret!
-// This MUST be the same secret as used in auth.js
-const JWT_SECRET = 'your-super-secret-and-long-jwt-secret-key';
+// Use environment variable for JWT secret with fallback
+const JWT_SECRET = process.env.JWT_SECRET || 'default-fallback-secret-key';
+
+if (JWT_SECRET === 'default-fallback-secret-key' && process.env.NODE_ENV !== 'test') {
+  console.warn('Security Warning: JWT_SECRET is using a default fallback value. Set a strong secret in your .env file for production.');
+}
 
 module.exports = function (req, res, next) {
   // Get token from header
@@ -16,7 +19,7 @@ module.exports = function (req, res, next) {
   // Check if token is in the correct format 'Bearer <token>'
   const parts = authHeader.split(' ');
   if (parts.length !== 2 || parts[0] !== 'Bearer') {
-    return res.status(401).json({ message: 'Token is not valid, authorization denied.' });
+    return res.status(401).json({ message: 'Token format is invalid, authorization denied.' });
   }
 
   const token = parts[1];
@@ -28,6 +31,14 @@ module.exports = function (req, res, next) {
     next(); // Proceed to the next middleware or route handler
   } catch (err) {
     console.error('Token verification error:', err.message);
-    res.status(401).json({ message: 'Token is not valid, authorization denied.' });
+    
+    // Provide more specific error messages
+    if (err.name === 'TokenExpiredError') {
+      return res.status(401).json({ message: 'Token has expired, please log in again.' });
+    } else if (err.name === 'JsonWebTokenError') {
+      return res.status(401).json({ message: 'Token is invalid, authorization denied.' });
+    } else {
+      return res.status(401).json({ message: 'Token verification failed, authorization denied.' });
+    }
   }
 };

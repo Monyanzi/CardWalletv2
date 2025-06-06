@@ -13,18 +13,37 @@ if (JWT_SECRET === 'default-fallback-secret-key' && process.env.NODE_ENV !== 'te
   console.warn('Security Warning: JWT_SECRET is using a default fallback value. Set a strong secret in your .env file for production.');
 }
 
-
 // POST /api/auth/register
 router.post('/register', async (req, res) => {
-  const { email, password } = req.body;
+  const { email, password, name } = req.body;
 
+  // Server-side validation
   if (!email || !password) {
     return res.status(400).json({ message: 'Email and password are required.' });
   }
 
-  // Basic password validation (e.g., minimum length)
-  if (password.length < 6) {
-    return res.status(400).json({ message: 'Password must be at least 6 characters long.' });
+  // Email format validation
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!emailRegex.test(email)) {
+    return res.status(400).json({ message: 'Please enter a valid email address.' });
+  }
+
+  // Password complexity validation
+  if (password.length < 8) {
+    return res.status(400).json({ message: 'Password must be at least 8 characters long.' });
+  }
+
+  if (!/(?=.*[a-zA-Z])/.test(password)) {
+    return res.status(400).json({ message: 'Password must contain at least one letter.' });
+  }
+
+  if (!/(?=.*\d)/.test(password)) {
+    return res.status(400).json({ message: 'Password must contain at least one number.' });
+  }
+
+  // Name validation (optional but if provided, must be valid)
+  if (name && (name.trim().length < 2 || name.trim().length > 50)) {
+    return res.status(400).json({ message: 'Name must be between 2 and 50 characters.' });
   }
 
   try {
@@ -33,25 +52,62 @@ router.post('/register', async (req, res) => {
       if (err) {
         return handleDbError(res, err, 'Server error during registration check.', 'Registration check DB error');
       }
+      
       if (row) {
-        return res.status(400).json({ message: 'User with this email already exists.' }); // Specific message, not a generic "not found"
+        return res.status(409).json({ message: 'An account with this email address already exists.' });
       }
 
-      // Hash password
-      const salt = await bcrypt.genSalt(10);
-      const passwordHash = await bcrypt.hash(password, salt);
+      try {
+        // Hash password with salt
+        const salt = await bcrypt.genSalt(12); // Increased salt rounds for better security
+        const passwordHash = await bcrypt.hash(password, salt);
 
-      // Store user
-      db.run('INSERT INTO Users (email, passwordHash) VALUES (?, ?)', [email, passwordHash], function (err) {
-        if (err) {
-          return handleDbError(res, err, 'Could not register user.', 'User insertion DB error');
-        }
-        res.status(201).json({ message: 'User registered successfully.', userId: this.lastID });
-      });
+        // Store user in database
+        db.run('INSERT INTO Users (email, passwordHash) VALUES (?, ?)', [email, passwordHash], function (err) {
+          if (err) {
+            return handleDbError(res, err, 'Could not register user.', 'User insertion DB error');
+          }
+
+          const userId = this.lastID;
+
+          // Generate JWT token for immediate login
+          const payload = {
+            user: {
+              id: userId,
+              email: email
+            }
+          };
+
+          jwt.sign(
+            payload,
+            JWT_SECRET,
+            { expiresIn: '24h' }, // Longer expiration for better UX
+            (jwtErr, token) => {
+              if (jwtErr) {
+                console.error('JWT generation error:', jwtErr);
+                // Registration succeeded but token generation failed
+                return res.status(201).json({ 
+                  message: 'User registered successfully. Please log in to continue.',
+                  userId: userId
+                });
+              }
+
+              // Return success response with token for seamless onboarding
+              res.status(201).json({ 
+                message: 'User registered successfully.',
+                token,
+                userId: userId,
+                email: email
+              });
+            }
+          );
+        });
+      } catch (hashError) {
+        console.error('Password hashing error:', hashError);
+        return res.status(500).json({ message: 'Server error during password processing.' });
+      }
     });
   } catch (error) {
-    // This catch block is for errors in the async operations before the db callback (e.g. bcrypt.genSalt)
-    // or if an error is thrown synchronously within the try block.
     console.error('Server error during registration process:', error.message);
     res.status(500).json({ message: 'Server error during registration process.' });
   }
@@ -71,37 +127,46 @@ router.post('/login', (req, res) => {
     }
     if (!user) {
       // Using 400 for "invalid credentials" is common, rather than 404
-      return res.status(400).json({ message: 'Invalid credentials. User not found.' });
+      return res.status(400).json({ message: 'Invalid email or password.' });
     }
 
-    // Check password
-    const isMatch = await bcrypt.compare(password, user.passwordHash);
-    if (!isMatch) {
-      return res.status(400).json({ message: 'Invalid credentials. Password incorrect.' });
+    try {
+      // Check password
+      const isMatch = await bcrypt.compare(password, user.passwordHash);
+      if (!isMatch) {
+        return res.status(400).json({ message: 'Invalid email or password.' });
+      }
+
+      // User matched, create JWT payload
+      const payload = {
+        user: {
+          id: user.id,
+          email: user.email
+        }
+      };
+
+      // Sign token
+      jwt.sign(
+        payload,
+        JWT_SECRET,
+        { expiresIn: '24h' }, // Extended expiration for better UX
+        (jwtErr, token) => {
+          if (jwtErr) {
+            console.error('JWT generation error:', jwtErr);
+            return res.status(500).json({ message: 'Server error during login.' });
+          }
+          
+          res.json({ 
+            token, 
+            userId: user.id,
+            email: user.email
+          });
+        }
+      );
+    } catch (bcryptError) {
+      console.error('Password comparison error:', bcryptError);
+      return res.status(500).json({ message: 'Server error during login.' });
     }
-
-    // User matched, create JWT payload
-    const payload = {
-      user: {
-        id: user.id,
-        email: user.email
-      }
-    };
-
-    // Sign token
-    jwt.sign(
-      payload,
-      JWT_SECRET,
-      { expiresIn: '1h' }, // Token expires in 1 hour (adjust as needed)
-      (err, token) => {
-        if (err) throw err;
-        res.json({ 
-          token, 
-          userId: user.id, // Include userId in response
-          email: user.email // Include email in response
-        });
-      }
-    );
   });
 });
 
