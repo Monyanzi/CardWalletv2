@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState } from 'react'; // Added useState
 import { ChevronDown, Star, WalletCards, Plus } from '../utils/icons';
 import CardListItem from './CardListItem';
+import ConfirmationDialog from '../ConfirmationDialog'; // Added ConfirmationDialog import
 import { Card, GroupedCards } from '../types';
 import { CATEGORY_LABELS, PS5_BLUE } from '../utils/constants';
 import { useTheme } from '../context/ThemeContext';
@@ -26,15 +27,16 @@ const CardList: React.FC<CardListProps> = ({
 }) => {
   const { darkMode } = useTheme();
   
-  // State to track which categories have their "show more" expanded
   const [expandedShowMore, setExpandedShowMore] = useState<Record<string, boolean>>({});
   
-  // Number of rows to show initially
+  // State for delete confirmation dialog
+  const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
+  const [cardIdToDelete, setCardIdToDelete] = useState<number | null>(null);
+
   const INITIAL_ROWS = 3;
   const CARDS_PER_ROW = 3;
   const INITIAL_CARDS = INITIAL_ROWS * CARDS_PER_ROW;
   
-  // Toggle "show more" for a category
   const toggleShowMore = (category: string) => {
     setExpandedShowMore(prev => ({
       ...prev,
@@ -43,7 +45,6 @@ const CardList: React.FC<CardListProps> = ({
   };
 
   const getSortedCards = (cards: Card[]) => {
-    // Sort cards by last name
     return [...cards].sort((a, b) => {
       const aLastName = a.name.split(' ').slice(-1)[0];
       const bLastName = b.name.split(' ').slice(-1)[0];
@@ -51,11 +52,29 @@ const CardList: React.FC<CardListProps> = ({
     });
   };
 
+  // Handlers for delete confirmation
+  const handleRequestDelete = (id: number) => {
+    setCardIdToDelete(id);
+    setIsDeleteConfirmOpen(true);
+  };
+
+  const handleConfirmDelete = () => {
+    if (cardIdToDelete !== null) {
+      onCardDelete(cardIdToDelete);
+    }
+    setIsDeleteConfirmOpen(false);
+    setCardIdToDelete(null);
+  };
+
+  const handleCancelDelete = () => {
+    setIsDeleteConfirmOpen(false);
+    setCardIdToDelete(null);
+  };
+
   return (
     <main className={`flex-1 overflow-y-auto px-4 py-4 space-y-6 ${darkMode ? 'bg-gray-900' : 'bg-gray-50'}`}>
-      {orderedCategories.length > 0 ? (
+      {orderedCards.length > 0 ? (
         orderedCategories.map(category => {
-          // Filter cards based on search and then sort by last name
           const categoryCards = getSortedCards(
             groupedCards[category].filter(card =>
               searchTerm === '' ||
@@ -66,14 +85,12 @@ const CardList: React.FC<CardListProps> = ({
 
           if (categoryCards.length === 0) return null;
 
-          // Determine how many cards to display
           const showAllCards = expandedShowMore[category] || categoryCards.length <= INITIAL_CARDS;
           const displayCards = showAllCards ? categoryCards : categoryCards.slice(0, INITIAL_CARDS);
           const hasMoreCards = categoryCards.length > INITIAL_CARDS;
 
           return (
             <div key={category} className="space-y-3">
-              {/* Category Header */}
               <button
                 className="flex justify-between items-center px-1 cursor-pointer w-full text-left group"
                 onClick={() => onToggleCategory(category)}
@@ -93,7 +110,6 @@ const CardList: React.FC<CardListProps> = ({
                 />
               </button>
 
-              {/* Cards Grid - Exactly 3 columns */}
               {expandedCategory === category && (
                 <div className="space-y-4">
                   <div
@@ -105,12 +121,11 @@ const CardList: React.FC<CardListProps> = ({
                         key={card.id}
                         card={card}
                         onClick={onCardClick}
-                        onDelete={onCardDelete}
+                        onDeleteRequest={handleRequestDelete} // Changed from onCardDelete
                       />
                     ))}
                   </div>
                   
-                  {/* Show More/Less Button */}
                   {hasMoreCards && (
                     <div className="flex justify-center">
                       <button 
@@ -135,7 +150,6 @@ const CardList: React.FC<CardListProps> = ({
           );
         })
       ) : (
-        // Empty State
         <div className="text-center py-10">
           <p className={darkMode ? 'text-gray-500' : 'text-gray-400'}>
             {searchTerm ? 'No cards match your search.' : 'Your wallet is empty.'}
@@ -149,6 +163,18 @@ const CardList: React.FC<CardListProps> = ({
             </button>
         </div>
       )}
+
+      {/* Confirmation Dialog for Delete */}
+      <ConfirmationDialog
+        isOpen={isDeleteConfirmOpen}
+        title="Delete Card"
+        message="Are you sure you want to delete this card? This action cannot be undone."
+        confirmText="Delete"
+        cancelText="Cancel"
+        onConfirm={handleConfirmDelete}
+        onCancel={handleCancelDelete}
+        isDestructive={true}
+      />
     </main>
   );
 };

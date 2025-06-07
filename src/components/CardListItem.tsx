@@ -8,10 +8,10 @@ import { useTheme } from '../context/ThemeContext';
 interface CardListItemProps {
   card: Card;
   onClick: (card: Card) => void;
-  onDelete: (id: number) => void;
+  onDeleteRequest: (id: number) => void; // Changed from onDelete
 }
 
-const CardListItem: React.FC<CardListItemProps> = ({ card, onClick, onDelete }) => {
+const CardListItem: React.FC<CardListItemProps> = ({ card, onClick, onDeleteRequest }) => { // Changed from onDelete
   const { darkMode } = useTheme();
 
   return (
@@ -40,7 +40,7 @@ const CardListItem: React.FC<CardListItemProps> = ({ card, onClick, onDelete }) 
           {/* Delete button */}
           <button
             className="absolute top-2 right-2 p-1.5 rounded-full bg-black bg-opacity-20 hover:bg-opacity-40 text-white transition-colors z-10 focus:outline-none focus:ring-1 focus:ring-white"
-            onClick={(e) => { e.stopPropagation(); onDelete(card.id); }}
+            onClick={(e) => { e.stopPropagation(); onDeleteRequest(card.id); }} // Changed from onDelete
             aria-label={`Delete ${card.name}`}
           >
             <Trash2 size={16} />
