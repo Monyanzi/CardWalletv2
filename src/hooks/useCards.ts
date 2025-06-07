@@ -64,6 +64,8 @@ export const useCards = () => {
   try {
     console.log('[useCards.ts] CATEGORY_LABELS at hook start:', CATEGORY_LABELS);
     const auth = useAuth(); // Get auth context
+    // NEW LOGGING
+    console.log(`[useCards.ts Init] Hook initialized. Auth State - User ID: ${auth.userId}, IsAuthenticated: ${auth.isAuthenticated}, Token Present: ${!!auth.token}`);
     const [cards, setCards] = useState<Card[]>([]); // This holds server cards for the authenticated user
     const [selectedCard, setSelectedCard] = useState<Card | null>(null);
     const [editingCardData, setEditingCardData] = useState<Card | null>(null);
@@ -96,7 +98,9 @@ export const useCards = () => {
       
       if (auth.isAuthenticated && auth.token) {
         // Fetch cards from API for authenticated users
-        console.log('[useCards.ts] loadCards: Fetching cards for authenticated user:', auth.userId);
+        // NEW LOGGING
+        console.log(`[useCards.ts loadCards Auth] User ID: ${auth.userId}, Token Present: ${!!auth.token}`);
+        console.log(`[useCards.ts loadCards Auth] Attempting to fetch from: http://localhost:5002/api/cards`);
         try {
           const response = await fetch('http://localhost:5002/api/cards', {
             method: 'GET',
@@ -111,7 +115,9 @@ export const useCards = () => {
           }
           
           const apiCardsData = await response.json();
-          console.log(`[useCards.ts] loadCards: Fetched apiCardsData. Length: ${apiCardsData.length}`);
+          // NEW LOGGING
+          console.log('[useCards.ts loadCards Auth] Raw API response data:', JSON.stringify(apiCardsData, null, 2));
+          // console.log(`[useCards.ts] loadCards: Fetched apiCardsData. Length: ${apiCardsData.length}`);
           
           if (apiCardsData.length > 0) {
             console.log('[useCards.ts] loadCards: Sample apiCard[0]:', JSON.stringify(apiCardsData[0]));
@@ -155,7 +161,9 @@ export const useCards = () => {
             return normalizedCard;
           }) as Card[];
           
-          console.log(`[useCards.ts] loadCards: Normalized cards. Length: ${normalizedApiCards.length}`);
+          // NEW LOGGING
+          console.log('[useCards.ts loadCards Auth] Normalized API cards for state:', JSON.stringify(normalizedApiCards, null, 2));
+          // console.log(`[useCards.ts] loadCards: Normalized cards. Length: ${normalizedApiCards.length}`);
           
           if (normalizedApiCards.length > 0) {
             console.log('[useCards.ts] loadCards: Sample normalizedCard[0]:', JSON.stringify(normalizedApiCards[0]));
@@ -176,7 +184,8 @@ export const useCards = () => {
           
           setCards(normalizedApiCards);
         } catch (apiError) {
-          console.error('Authenticated: Error loading cards from API:', apiError);
+          // NEW LOGGING
+          console.error('[useCards.ts loadCards Auth] API fetch error:', apiError);
           setLoadError(apiError as Error);
           
           // Try to load from cache if API fails
@@ -184,7 +193,8 @@ export const useCards = () => {
             try {
               const cachedCardsJson = localStorage.getItem(userCacheKey);
               if (cachedCardsJson) {
-                console.log('Authenticated: API failed, loading from cache for user:', auth.userId);
+                // NEW LOGGING
+                console.log('[useCards.ts loadCards Auth] Loading from user-specific cache due to API error. Cached JSON string:', cachedCardsJson);
                 try {
                   const cachedCardsRaw = JSON.parse(cachedCardsJson);
                   const normalizedCachedCards = Array.isArray(cachedCardsRaw) ? cachedCardsRaw.map(card => normalizeCardType(card as any)) : [];
@@ -315,8 +325,11 @@ export const useCards = () => {
       }
     } else {
       // Authenticated: Add via API
+      // NEW LOGGING
+      console.log(`[useCards.ts addCard Auth] User ID: ${auth.userId}, Token Present: ${!!auth.token}`);
+      console.log('[useCards.ts addCard Auth] Attempting to add card via API. Payload:', JSON.stringify(newCardData, null, 2));
       try {
-        console.log('Authenticated: Adding card via API for user:', auth.userId);
+        // console.log('Authenticated: Adding card via API for user:', auth.userId);
         const response = await fetch('http://localhost:5002/api/cards', {
           method: 'POST',
           headers: {
@@ -331,15 +344,18 @@ export const useCards = () => {
           throw new Error(`Failed to add card: ${response.status} ${response.statusText} - ${errorBody}`);
         }
         const addedCard = await response.json();
+        // NEW LOGGING
+        console.log('[useCards.ts addCard Auth] Raw API response (added card):', JSON.stringify(addedCard, null, 2));
         await loadCards(); // Reload all cards from the server to reflect the addition
         // The localStorage update for userCacheKey will happen inside loadCards
         return addedCard;
       } catch (error) {
-        console.error('Authenticated: Error adding card via API:', error);
+        // NEW LOGGING
+        console.error('[useCards.ts addCard Auth] API add error:', error);
         throw error; // Rethrow the error to be handled by the caller or a generic error boundary
       }
     }
-  }, [auth.isAuthenticated, auth.userId, auth.token]);
+  }, [auth.isAuthenticated, auth.userId, auth.token, loadCards]);
 
   // Delete a card with persistence
   const deleteCard = useCallback(async (cardOrId: Card | number) => {
@@ -358,8 +374,11 @@ export const useCards = () => {
       return;
     } else {
       // Authenticated: Delete via API
+      // NEW LOGGING
+      console.log(`[useCards.ts deleteCard Auth] User ID: ${auth.userId}, Token Present: ${!!auth.token}`);
+      console.log('[useCards.ts deleteCard Auth] Attempting to delete card via API. ID:', cardIdToDelete);
       try {
-        console.log('Authenticated: Deleting card via API, ID:', cardIdToDelete);
+        // console.log('Authenticated: Deleting card via API, ID:', cardIdToDelete);
         const response = await fetch(`http://localhost:5002/api/cards/${cardIdToDelete}`, {
           method: 'DELETE',
           headers: {
@@ -371,6 +390,8 @@ export const useCards = () => {
           const errorBody = await response.text();
           throw new Error(`Failed to delete card: ${response.status} ${response.statusText} - ${errorBody}`);
         }
+        // NEW LOGGING
+        console.log('[useCards.ts deleteCard Auth] API delete call successful for ID:', cardIdToDelete);
         setCards(prevCards => {
           const updatedCards = prevCards.filter(card => card.id !== cardIdToDelete);
           const userCacheKey = `${AUTH_USER_CARDS_KEY_PREFIX}${auth.userId}`;
@@ -382,12 +403,13 @@ export const useCards = () => {
         if (selectedCard && selectedCard.id === cardIdToDelete) setSelectedCard(null);
         return true;
       } catch (error) {
-        console.error('Authenticated: Error deleting card via API:', error);
+        // NEW LOGGING
+        console.error('[useCards.ts deleteCard Auth] API delete error:', error);
         // Handle ApiError, NetworkError if cardApi.deleteCard throws them specifically
         throw error; // Rethrow the error to be handled by the caller or a generic error boundary
       }
     }
-  }, [auth.isAuthenticated, auth.userId, auth.token, selectedCard]);
+  }, [auth.isAuthenticated, auth.userId, auth.token, selectedCard, editingCardData]);
 
   // Update a card with persistence
   const updateCard = useCallback(async (cardToUpdate: Card) => {
@@ -406,8 +428,11 @@ export const useCards = () => {
       return cardToUpdate;
     } else {
       // Authenticated: Update via API
+      // NEW LOGGING
+      console.log(`[useCards.ts updateCard Auth] User ID: ${auth.userId}, Token Present: ${!!auth.token}`);
+      console.log('[useCards.ts updateCard Auth] Attempting to update card via API. ID:', cardToUpdate.id, 'Payload:', JSON.stringify(cardToUpdate, null, 2));
       try {
-        console.log('Authenticated: Updating card via API, ID:', cardToUpdate.id);
+        // console.log('Authenticated: Updating card via API, ID:', cardToUpdate.id);
         const response = await fetch(`http://localhost:5002/api/cards/${cardToUpdate.id}`, {
           method: 'PUT',
           headers: {
@@ -422,6 +447,8 @@ export const useCards = () => {
           throw new Error(`Failed to update card: ${response.status} ${response.statusText} - ${errorBody}`);
         }
         const updatedCardFromApi = await response.json();
+        // NEW LOGGING
+        console.log('[useCards.ts updateCard Auth] Raw API response (updated card):', JSON.stringify(updatedCardFromApi, null, 2));
         setCards(prevCards => {
           const updatedCardsList = prevCards.map(card => 
             card.id === updatedCardFromApi.id ? updatedCardFromApi : card
@@ -436,7 +463,8 @@ export const useCards = () => {
         if (editingCardData && editingCardData.id === updatedCardFromApi.id) setEditingCardData(updatedCardFromApi);
         return updatedCardFromApi;
       } catch (error) {
-        console.error('Authenticated: Error updating card via API:', error);
+        // NEW LOGGING
+        console.error('[useCards.ts updateCard Auth] API update error:', error);
         throw error; // Rethrow the error to be handled by the caller or a generic error boundary
       }
     }
