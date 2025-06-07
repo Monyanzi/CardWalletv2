@@ -32,6 +32,7 @@ const SearchBar: React.FC<SearchBarProps> = ({
           value={searchTerm}
           onChange={onSearchChange}
           placeholder="Search cards..."
+          aria-label="Search cards" // Added aria-label for accessibility as there's no visible label
           className={`w-full p-2 pl-10 border rounded-md ${
             darkMode 
               ? 'border-gray-600 bg-gray-800 text-white placeholder-gray-400' 
@@ -39,7 +40,7 @@ const SearchBar: React.FC<SearchBarProps> = ({
           } focus:ring-2 focus:ring-blue-500 focus:border-transparent`}
           autoFocus
         />
-        <Search className={`absolute left-3 top-2.5 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`} size={20} />
+        <Search className={`absolute left-3 top-2.5 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`} size={20} aria-hidden="true" />
         {searchTerm && (
           <button
             className={`absolute right-3 top-2.5 ${darkMode ? 'text-gray-400 hover:text-gray-200' : 'text-gray-500 hover:text-gray-700'}`}
