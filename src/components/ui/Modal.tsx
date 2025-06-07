@@ -3,6 +3,7 @@ import { X } from '../../utils/icons';
 import { useTheme } from '../../context/ThemeContext';
 import IconButton from './IconButton';
 import { createPortal } from 'react-dom';
+import { useFocusTrap } from '../../hooks/useFocusTrap';
 
 interface ModalProps {
   isOpen: boolean;
@@ -33,47 +34,9 @@ const Modal: React.FC<ModalProps> = ({
 }) => {
   const { darkMode } = useTheme();
   const [mounted, setMounted] = useState(false);
-  
+
   // References for accessibility
   const modalRef = useRef<HTMLDivElement>(null);
-  const titleId = useRef(`modal-title-${Math.random().toString(36).substr(2, 9)}`);
-  const descriptionId = useRef(`modal-desc-${Math.random().toString(36).substr(2, 9)}`);
-  
-  // Reference to store the element that had focus before modal was opened
-import { useFocusTrap } from '../../hooks/useFocusTrap';
-
-interface ModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  title?: string;
-  description?: string;
-  children: ReactNode;
-  footer?: ReactNode;
-  className?: string;
-  showCloseButton?: boolean;
-  initialFocusRef?: React.RefObject<HTMLElement>; // Retained for direct control if needed by useFocusTrap
-  returnFocusRef?: React.RefObject<HTMLElement>; // Retained for direct control if needed by useFocusTrap
-  onAnimationComplete?: () => void;
-}
-
-const Modal: React.FC<ModalProps> = ({
-  isOpen,
-  onClose,
-  title,
-  description,
-  children,
-  footer,
-  className = '',
-  showCloseButton = true,
-  initialFocusRef, // Passed to useFocusTrap
-  returnFocusRef,  // Passed to useFocusTrap
-  onAnimationComplete,
-}) => {
-  const { darkMode } = useTheme();
-  const [mounted, setMounted] = useState(false);
-
-  // References for accessibility
-  const modalRef = useRef<HTMLDivElement>(null); // Ref for the modal container itself
   const titleId = useRef(`modal-title-${Math.random().toString(36).substr(2, 9)}`);
   const descriptionId = useRef(`modal-desc-${Math.random().toString(36).substr(2, 9)}`);
 
@@ -140,27 +103,27 @@ const Modal: React.FC<ModalProps> = ({
     <div 
       className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center p-4 z-50" 
       onClick={handleBackdropClick}
-      aria-modal="true" // Informs assistive technologies that content outside the dialog is inert.
-      role="dialog" // Specifies the role of the element as a dialog.
-      aria-labelledby={title ? titleId.current : undefined} // Provides an accessible name by referring to the title.
-      aria-describedby={description ? descriptionId.current : undefined} // Provides more detailed info if a description is present.
+      aria-modal="true"
+      role="dialog"
+      aria-labelledby={title ? titleId.current : undefined}
+      aria-describedby={description ? descriptionId.current : undefined}
     >
       <div 
-        ref={modalRef} // This ref is used by useFocusTrap to define the trap container.
+        ref={modalRef}
         className={`relative w-full max-w-md max-h-[90vh] overflow-hidden rounded-lg shadow-xl ${darkMode ? 'bg-gray-800 text-gray-100' : 'bg-white text-gray-800'} ${className} animate-fade-in`}
       >
         {/* Modal Header: Contains title and close button */}
         {(title || showCloseButton) && (
           <div className={`p-4 flex items-center justify-between ${darkMode ? 'border-gray-700' : 'border-gray-200'} border-b`}>
-            {title && <h3 id={titleId.current} className="text-lg font-semibold">{title}</h3>} {/* Element that aria-labelledby points to */}
+            {title && <h3 id={titleId.current} className="text-lg font-semibold">{title}</h3>}
             {showCloseButton && (
               <IconButton
                 icon={X}
-                onClick={onClose} // onClose is also called by useFocusTrap on Escape key
+                onClick={onClose}
                 variant="secondary"
                 size="sm"
-                label="Close" // Accessible label for the button itself
-                aria-label="Close modal" // More specific aria-label
+                label="Close"
+                aria-label="Close modal"
               />
             )}
           </div>
@@ -168,7 +131,7 @@ const Modal: React.FC<ModalProps> = ({
         
         {/* Screen reader description if provided (hidden visually, read by screen readers) */}
         {description && (
-          <div id={descriptionId.current} className="sr-only"> {/* Element that aria-describedby points to */}
+          <div id={descriptionId.current} className="sr-only">
             {description}
           </div>
         )}
