@@ -1,6 +1,7 @@
 import { Suspense, lazy } from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { ThemeProvider } from './context/ThemeContext';
+import ErrorBoundary from './components/ErrorBoundary'; // Import ErrorBoundary
 import { AuthProvider } from './AuthContext'; // Import AuthProvider
 import { UserPreferencesProvider } from './context/UserPreferencesContext';
 
@@ -26,12 +27,14 @@ function App() {
           </div>
         </div>
       }>
-          <Routes>
-            <Route path="/login" element={<LoginPage />} />
-            <Route path="/register" element={<RegisterPage />} />
-            {/* CardWallet is now accessible to everyone */}
-            <Route path="/*" element={<CardWallet />} /> 
-          </Routes>
+            <ErrorBoundary>
+              <Routes>
+                <Route path="/login" element={<LoginPage />} />
+                <Route path="/register" element={<RegisterPage />} />
+                {/* CardWallet is now accessible to everyone */}
+                <Route path="/*" element={<CardWallet />} />
+              </Routes>
+            </ErrorBoundary>
           </Suspense>
           </Router>
         </AuthProvider>

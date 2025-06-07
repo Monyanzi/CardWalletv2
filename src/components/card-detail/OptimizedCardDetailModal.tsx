@@ -61,18 +61,28 @@ const OptimizedCardDetailModal: React.FC<CardDetailModalProps> = ({
   };
   
   // Show feedback message
-  const showFeedback = (message: string) => {
+  const showFeedback = (message: string, type: 'success' | 'error' | 'warning' | 'info' = 'info', duration: number = 3000) => {
     // Create a temporary div for feedback
     const feedbackDiv = document.createElement('div');
-    feedbackDiv.className = `fixed bottom-4 left-1/2 transform -translate-x-1/2 px-4 py-2 bg-blue-600 text-white rounded-md shadow-lg z-50`;
+    let bgColor = 'bg-blue-600'; // Default for info
+    if (type === 'success') bgColor = 'bg-green-500';
+    if (type === 'error') bgColor = 'bg-red-500';
+    if (type === 'warning') bgColor = 'bg-yellow-500';
+
+    feedbackDiv.className = `fixed bottom-4 left-1/2 transform -translate-x-1/2 px-4 py-2 ${bgColor} text-white rounded-md shadow-lg z-[10000]`; // Increased z-index
     feedbackDiv.textContent = message;
     document.body.appendChild(feedbackDiv);
     
-    // Remove after 3 seconds
+    // Remove after specified duration
     setTimeout(() => {
-      feedbackDiv.classList.add('opacity-0', 'transition-opacity', 'duration-500');
-      setTimeout(() => document.body.removeChild(feedbackDiv), 500);
-    }, 3000);
+      feedbackDiv.style.opacity = '0';
+      feedbackDiv.style.transition = 'opacity 0.5s ease-out';
+      setTimeout(() => {
+        if (document.body.contains(feedbackDiv)) {
+          document.body.removeChild(feedbackDiv);
+        }
+      }, 500); // Wait for fade out animation
+    }, duration);
   };
   
   // Return null early if modal is closed
@@ -169,7 +179,8 @@ const OptimizedCardDetailModal: React.FC<CardDetailModalProps> = ({
     <Modal
       isOpen={isOpen}
       onClose={isEditing ? onCancelEdit : onClose}
-      showCloseButton={false}
+      title={modalTitle} // Pass modalTitle to the generic Modal's title prop
+      showCloseButton={false} // Keep false as OptimizedCardDetailModal renders its own header controls
       className="w-full max-w-md"
     >
       <div className="p-4">
@@ -184,7 +195,7 @@ const OptimizedCardDetailModal: React.FC<CardDetailModalProps> = ({
             {(card.isMyCard || card.type === 'business') ? (
               <>
                 <h3 className="text-center font-medium mb-4">Business Card QR Code</h3>
-                <QRCodeGenerator card={card} />
+                <QRCodeGenerator card={card} showFeedback={showFeedback} />
               </>
             ) : (
               /* For non-business cards with QR data, show that data as QR */

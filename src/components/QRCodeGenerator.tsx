@@ -1,5 +1,5 @@
 import React from 'react';
-import { QRCodeSVG } from 'qrcode.react';
+import { QRCodeCanvas } from 'qrcode.react'; // Changed from QRCodeSVG to QRCodeCanvas
 import { Card } from '../types';
 import { useTheme } from '../context/ThemeContext';
 import { Download } from '../utils/icons';
@@ -8,12 +8,14 @@ interface QRCodeGeneratorProps {
   card: Card;
   size?: number;
   showDownload?: boolean;
+  showFeedback?: (message: string, type?: 'success' | 'error' | 'warning' | 'info', duration?: number) => void;
 }
 
 const QRCodeGenerator: React.FC<QRCodeGeneratorProps> = ({ 
   card, 
   size = 200,
-  showDownload = true
+  showDownload = true,
+  showFeedback
 }) => {
   const { darkMode } = useTheme();
   
@@ -72,33 +74,53 @@ const QRCodeGenerator: React.FC<QRCodeGeneratorProps> = ({
   // Function to download QR code as PNG
   const downloadQRCode = () => {
     const canvas = document.getElementById('qr-code-canvas') as HTMLCanvasElement;
-    if (canvas) {
-      const pngUrl = canvas
-        .toDataURL('image/png')
-        .replace('image/png', 'image/octet-stream');
+    if (!canvas) {
+      if (showFeedback) {
+        showFeedback("QR code canvas element not found.", "error");
+      } else {
+        console.error("QR code canvas element not found.");
+      }
+      return;
+    }
+
+    try {
+      const pngUrl = canvas.toDataURL('image/png');
+      // .replace('image/png', 'image/octet-stream'); // replace is not needed for modern browsers to force download with dataURL. The download attribute handles it.
       
       const downloadLink = document.createElement('a');
       downloadLink.href = pngUrl;
-      downloadLink.download = `${card.name.replace(/\s+/g, '-').toLowerCase()}-qrcode.png`;
+      const filename = `${(card.name || card.company || 'card').replace(/\s+/g, '-').toLowerCase()}-qrcode.png`;
+      downloadLink.download = filename;
+
       document.body.appendChild(downloadLink);
       downloadLink.click();
       document.body.removeChild(downloadLink);
+
+      if (showFeedback) {
+        showFeedback("QR code download started.", "success");
+      }
+
+    } catch (error) {
+      console.error("Failed to download QR code:", error);
+      if (showFeedback) {
+        showFeedback("Failed to download QR code. Please try again.", "error");
+      }
     }
   };
   
   return (
     <div className="flex flex-col items-center">
       <div 
-        className={`p-4 rounded-lg ${darkMode ? 'bg-white' : 'bg-white'} shadow-md`}
+        className={`p-4 rounded-lg ${darkMode ? 'bg-white' : 'bg-white'} shadow-md`} // Ensure bg is white for canvas
       >
-        <QRCodeSVG 
-          id="qr-code-canvas"
+        <QRCodeCanvas // Changed from QRCodeSVG
+          id="qr-code-canvas" // ID for referencing the canvas
           value={vCardData} 
           size={size} 
           bgColor={"#ffffff"} 
           fgColor={"#000000"} 
           level={"H"} 
-          includeMargin={true}
+          // includeMargin={true} // includeMargin is an SVG concept, canvas renders what's given by size
         />
       </div>
       

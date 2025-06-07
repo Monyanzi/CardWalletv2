@@ -40,98 +40,72 @@ const Modal: React.FC<ModalProps> = ({
   const descriptionId = useRef(`modal-desc-${Math.random().toString(36).substr(2, 9)}`);
   
   // Reference to store the element that had focus before modal was opened
-  const previousActiveElement = useRef<Element | null>(null);
+import { useFocusTrap } from '../../hooks/useFocusTrap';
+
+interface ModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  title?: string;
+  description?: string;
+  children: ReactNode;
+  footer?: ReactNode;
+  className?: string;
+  showCloseButton?: boolean;
+  initialFocusRef?: React.RefObject<HTMLElement>; // Retained for direct control if needed by useFocusTrap
+  returnFocusRef?: React.RefObject<HTMLElement>; // Retained for direct control if needed by useFocusTrap
+  onAnimationComplete?: () => void;
+}
+
+const Modal: React.FC<ModalProps> = ({
+  isOpen,
+  onClose,
+  title,
+  description,
+  children,
+  footer,
+  className = '',
+  showCloseButton = true,
+  initialFocusRef, // Passed to useFocusTrap
+  returnFocusRef,  // Passed to useFocusTrap
+  onAnimationComplete,
+}) => {
+  const { darkMode } = useTheme();
+  const [mounted, setMounted] = useState(false);
+
+  // References for accessibility
+  const modalRef = useRef<HTMLDivElement>(null); // Ref for the modal container itself
+  const titleId = useRef(`modal-title-${Math.random().toString(36).substr(2, 9)}`);
+  const descriptionId = useRef(`modal-desc-${Math.random().toString(36).substr(2, 9)}`);
+
+  // Integrate useFocusTrap for managing focus, Escape key, and returning focus.
+  // This centralizes accessibility logic related to focus control.
+  useFocusTrap(isOpen, modalRef, initialFocusRef, returnFocusRef, onClose);
   
   useEffect(() => {
     setMounted(true);
     return () => setMounted(false);
   }, []);
 
-  // Store previous active element and set focus when modal opens
+  // Manage body scroll lock
   useEffect(() => {
     if (isOpen) {
-      previousActiveElement.current = document.activeElement;
-      
-      // Set focus to either the specified element or the first focusable element
-      setTimeout(() => {
-        if (initialFocusRef?.current) {
-          initialFocusRef.current.focus();
-        } else if (modalRef.current) {
-          const focusableEls = modalRef.current.querySelectorAll(
-            'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
-          );
-          if (focusableEls.length > 0) {
-            (focusableEls[0] as HTMLElement).focus();
-          }
-        }
-      }, 50); // Small delay to ensure the modal is rendered
-      
-      // Prevent background scrolling
       document.body.style.overflow = 'hidden';
-    } else if (previousActiveElement.current) {
-      // Return focus when modal closes
-      if (returnFocusRef?.current) {
-        returnFocusRef.current.focus();
-      } else if (previousActiveElement.current instanceof HTMLElement) {
-        previousActiveElement.current.focus();
-      }
-      
-      // Re-enable scrolling
+    } else {
       document.body.style.overflow = '';
     }
     
     // Call animation complete callback after opening animation
     if (isOpen && onAnimationComplete) {
-      const timer = setTimeout(onAnimationComplete, 300);
+      const timer = setTimeout(onAnimationComplete, 300); // Animation duration
       return () => clearTimeout(timer);
     }
-  }, [isOpen, initialFocusRef, returnFocusRef, onAnimationComplete]);
-  
-  // Handle escape key to close modal
-  useEffect(() => {
-    const handleEscKey = (event: KeyboardEvent) => {
-      if (isOpen && event.key === 'Escape') {
-        onClose();
-      }
+    // Ensure body overflow is reset if component unmounts while open
+    return () => {
+      document.body.style.overflow = '';
     };
-    
-    document.addEventListener('keydown', handleEscKey);
-    return () => document.removeEventListener('keydown', handleEscKey);
-  }, [isOpen, onClose]);
+  }, [isOpen, onAnimationComplete]);
   
-  // Focus trap inside modal
-  useEffect(() => {
-    if (!isOpen || !modalRef.current) return;
-    
-    const focusableSelector = 'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])';
-    const modalElement = modalRef.current;
-    
-    const handleTabKey = (e: KeyboardEvent) => {
-      if (e.key !== 'Tab') return;
-      
-      const focusableElements = Array.from(
-        modalElement.querySelectorAll(focusableSelector)
-      ) as HTMLElement[];
-      
-      if (focusableElements.length === 0) return;
-      
-      const firstElement = focusableElements[0];
-      const lastElement = focusableElements[focusableElements.length - 1];
-      
-      if (e.shiftKey && document.activeElement === firstElement) {
-        e.preventDefault();
-        lastElement.focus();
-      } else if (!e.shiftKey && document.activeElement === lastElement) {
-        e.preventDefault();
-        firstElement.focus();
-      }
-    };
-    
-    document.addEventListener('keydown', handleTabKey);
-    return () => document.removeEventListener('keydown', handleTabKey);
-  }, [isOpen]);
-  
-  // Screen reader announcements
+  // Screen reader announcements (remains useful)
   useEffect(() => {
     if (isOpen) {
       // Announce to screen readers that a modal has opened
@@ -166,45 +140,45 @@ const Modal: React.FC<ModalProps> = ({
     <div 
       className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center p-4 z-50" 
       onClick={handleBackdropClick}
-      aria-modal="true"
-      role="dialog"
-      aria-labelledby={title ? titleId.current : undefined}
-      aria-describedby={description ? descriptionId.current : undefined}
+      aria-modal="true" // Informs assistive technologies that content outside the dialog is inert.
+      role="dialog" // Specifies the role of the element as a dialog.
+      aria-labelledby={title ? titleId.current : undefined} // Provides an accessible name by referring to the title.
+      aria-describedby={description ? descriptionId.current : undefined} // Provides more detailed info if a description is present.
     >
       <div 
-        ref={modalRef}
+        ref={modalRef} // This ref is used by useFocusTrap to define the trap container.
         className={`relative w-full max-w-md max-h-[90vh] overflow-hidden rounded-lg shadow-xl ${darkMode ? 'bg-gray-800 text-gray-100' : 'bg-white text-gray-800'} ${className} animate-fade-in`}
       >
-        {/* Modal Header */}
+        {/* Modal Header: Contains title and close button */}
         {(title || showCloseButton) && (
           <div className={`p-4 flex items-center justify-between ${darkMode ? 'border-gray-700' : 'border-gray-200'} border-b`}>
-            {title && <h3 id={titleId.current} className="text-lg font-semibold">{title}</h3>}
+            {title && <h3 id={titleId.current} className="text-lg font-semibold">{title}</h3>} {/* Element that aria-labelledby points to */}
             {showCloseButton && (
               <IconButton
                 icon={X}
-                onClick={onClose}
+                onClick={onClose} // onClose is also called by useFocusTrap on Escape key
                 variant="secondary"
                 size="sm"
-                label="Close"
-                aria-label="Close modal"
+                label="Close" // Accessible label for the button itself
+                aria-label="Close modal" // More specific aria-label
               />
             )}
           </div>
         )}
         
-        {/* Screen reader description if provided */}
+        {/* Screen reader description if provided (hidden visually, read by screen readers) */}
         {description && (
-          <div id={descriptionId.current} className="sr-only">
+          <div id={descriptionId.current} className="sr-only"> {/* Element that aria-describedby points to */}
             {description}
           </div>
         )}
         
-        {/* Modal Content */}
+        {/* Modal Content: Main content area of the modal */}
         <div className="overflow-y-auto max-h-[calc(100vh-12rem)]">
           {children}
         </div>
         
-        {/* Modal Footer */}
+        {/* Modal Footer: Contains action buttons or other footer content */}
         {footer && (
           <div className={`p-4 ${darkMode ? 'border-gray-700 bg-gray-800' : 'border-gray-200 bg-white'} border-t sticky bottom-0`}>
             {footer}

@@ -9,11 +9,12 @@ import { INITIAL_CARD_STATE, CARD_TYPES, PS5_BLUE } from '../utils/constants';
 import ConfirmationDialog from './ConfirmationDialog';
 import { Card } from '../types'; // Removed SyncStatus, UserData
 import { useCards } from '../hooks/useCards';
+import { useSearch } from '../hooks/useSearch'; // Import useSearch
 import { FeedbackType } from '../hooks/useFeedback';
 import { useFeedback } from '../hooks/useFeedback';
 import { cardApi, ApiError, NetworkError, ValidationError } from '../api/cardApi';
 import Header from './Header';
-// Removed CardFormModal import as it's not found and form is inline
+import FeedbackBanner from './ui/FeedbackBanner'; // Import FeedbackBanner
 import ConflictResolutionModal from './ConflictResolutionModal';
 import Footer from './Footer';
 import SearchBar from './SearchBar';
@@ -42,13 +43,23 @@ const OptimizedCardWallet: React.FC = () => {
   const {
     sortBy: userSortPreference,
     lastExpandedCategory: userExpandedCategory,
-    searchTerm: savedSearchTerm,
-    showSearch: savedShowSearch,
+    searchTerm: persistentSearchTerm, // Renamed to avoid conflict
+    showSearch: persistentShowSearch, // Renamed to avoid conflict
     setSortPreference,
     setExpandedCategory,
-    setSearchTerm,
-    setShowSearch
+    setSearchTerm: setPersistentSearchTerm, // Renamed
+    setShowSearch: setPersistentShowSearch   // Renamed
   } = useUserPreferences();
+
+  // Initialize useSearch hook for managing search input, debounced term, and visibility
+  const {
+    inputValue: searchInputValue, // Value for the search input field
+    searchTerm: debouncedSearchTerm, // Debounced search term for filtering
+    showSearch: showSearchFromHook,  // UI state for showing/hiding search bar
+    handleSearchChange: handleSearchInputChangeFromHook,
+    handleClearSearch: handleClearSearchFromHook,
+    handleSearchToggle: handleSearchToggleFromHook
+  } = useSearch(); // Default debounce delay (e.g., 300ms)
   
   // Use custom hooks for better code organization and reduced bundle size
   const {
@@ -63,11 +74,32 @@ const OptimizedCardWallet: React.FC = () => {
     currentConflictIndex,
     handleConflictResolution,
     skipConflict,
-    processNextConflictOrFinalize
+    processNextConflictOrFinalize,
+    lastSyncOutcome, // Destructure new state
+    clearLastSyncOutcome // Destructure new function
   } = useCards();
   
-  // Initialize search state from preferences
-  const [searchValue, setSearchValue] = useState(savedSearchTerm);
+  // Effect to synchronize debounced search term from useSearch with UserPreferences for persistence
+  useEffect(() => {
+    setPersistentSearchTerm(debouncedSearchTerm);
+  }, [debouncedSearchTerm, setPersistentSearchTerm]);
+
+  // Effect to synchronize showSearch state from useSearch with UserPreferences for persistence
+  useEffect(() => {
+    setPersistentShowSearch(showSearchFromHook);
+  }, [showSearchFromHook, setPersistentShowSearch]);
+
+  // Effect to initialize inputValue from persisted search term if search is shown initially
+  // This ensures that if the page reloads with search open and a term persisted, the input field is populated.
+  useEffect(() => {
+    if (persistentShowSearch && persistentSearchTerm) {
+      // Directly call the hook's input change handler to also trigger initial debounce if needed,
+      // though for initial load, direct setting of searchTerm via useSearch's internal logic might be cleaner.
+      // For now, this ensures inputValue is set.
+      handleSearchInputChangeFromHook(persistentSearchTerm);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Run only once on mount
   
   // Update card sorting from user preferences
   useEffect(() => {
@@ -75,6 +107,25 @@ const OptimizedCardWallet: React.FC = () => {
       setSortOption(userSortPreference as any);
     }
   }, [userSortPreference, setSortOption]);
+
+  // Effect to show feedback based on sync outcome
+  useEffect(() => {
+    if (lastSyncOutcome === 'partial_failure') {
+      showFeedback(
+        "Some local cards could not be synced. They will be re-attempted on your next login.",
+        "warning",
+        5000 // Duration in ms
+      );
+      clearLastSyncOutcome(); // Reset the outcome so message doesn't reappear
+    } else if (lastSyncOutcome === 'success') {
+      showFeedback(
+        "Local cards synced successfully with the server.",
+        "success",
+        3000 // Duration in ms
+      );
+      clearLastSyncOutcome(); // Reset the outcome
+    }
+  }, [lastSyncOutcome, showFeedback, clearLastSyncOutcome]);
   
   // Get custom hook state and methods
   const { feedbackMessage, showFeedback, clearFeedback } = useFeedback(); // Corrected to feedbackMessage
@@ -397,45 +448,39 @@ const OptimizedCardWallet: React.FC = () => {
     showFeedback('Contact saved to your device', 'success');
   };
   
-  const handleSearchToggle = () => {
-    const newShowSearch = !savedShowSearch;
-    setShowSearch(newShowSearch);
+  // Wrapper for SearchBar's onSearchChange to fit useSearch's handleSearchInputChangeFromHook
+  const handleSearchBarInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    handleSearchInputChangeFromHook(e.target.value);
   };
   
-  const handleClearSearch = () => {
-    setSearchValue('');
-    setSearchTerm('');
-  };
-  
-  const handleSearchChange = (value: string) => {
-    setSearchValue(value);
-    setSearchTerm(value);
-  };
-  
-  // Get filtered categories based on search term
-  const filteredCategories = getFilteredCategories(savedSearchTerm);
+  // Get filtered categories based on the debounced search term
+  const filteredCategories = getFilteredCategories(debouncedSearchTerm);
   
   return (
     <div className={`flex flex-col h-screen ${darkMode ? 'bg-gray-900 text-gray-200' : 'bg-gray-50 text-gray-800'} font-sans`}>
       <Header />
 
-      {/* Feedback Message Area */}
+      {/* Global Feedback Message Area */}
+      {/* This section renders the FeedbackBanner component, positioned at the bottom-center of the screen. */}
+      {/* The FeedbackBanner itself uses ARIA live regions (role="status") to announce messages. */}
       {feedbackMessage && (
-        <div style={{ 
-          backgroundColor: feedbackColors[feedbackMessage.type as FeedbackType] || feedbackColors.info,
-          color: 'white', 
-          padding: '10px', 
-          borderRadius: '5px', 
-          margin: '10px 0', 
-          textAlign: 'center',
-          position: 'fixed',
-          bottom: '20px',
-          left: '50%',
-          transform: 'translateX(-50%)',
-          zIndex: 2000,
-          boxShadow: '0 4px 6px rgba(0,0,0,0.1)'
-        }}>
-          {feedbackMessage.text}
+        <div
+          style={{
+            position: 'fixed', // Positions the banner relative to the viewport.
+            bottom: '20px',    // Places it near the bottom.
+            left: '50%',       // Centers it horizontally.
+            transform: 'translateX(-50%)', // Precise horizontal centering.
+            zIndex: 2000,      // Ensures it appears above most other content.
+            width: 'auto',     // Banner width adjusts to its content.
+            maxWidth: '90%',   // Prevents the banner from being too wide on large screens.
+          }}
+          className="flex justify-center" // Ensures the banner is centered if its content is narrower than maxWidth.
+        >
+          <FeedbackBanner
+            message={feedbackMessage.text}
+            type={feedbackMessage.type}
+            onClose={clearFeedback} // Allow manual dismissal
+          />
         </div>
       )}
 
@@ -476,7 +521,7 @@ const OptimizedCardWallet: React.FC = () => {
       </Suspense>
 
       {/* Main content area with padding for footer and search bar when visible */}
-      <div className={`flex-1 px-4 overflow-y-auto ${savedShowSearch ? 'pb-36' : 'pb-16'}`}>
+      <div className={`flex-1 px-4 overflow-y-auto ${showSearchFromHook ? 'pb-36' : 'pb-16'}`}>
         {/* Card List */}
         <Suspense fallback={<div className="p-4 text-center">Loading cards...</div>}>
         {/* Empty space for feedback messages */}
@@ -490,7 +535,7 @@ const OptimizedCardWallet: React.FC = () => {
               onToggleCategory={handleToggleCategory}
               onCardClick={handleCardClick}
               onCardDelete={handleDeleteCard}
-              searchTerm={savedSearchTerm}
+              searchTerm={debouncedSearchTerm} // Use debounced term for display filtering
             />
           ) : (
             <CardList
@@ -500,7 +545,7 @@ const OptimizedCardWallet: React.FC = () => {
               onToggleCategory={handleToggleCategory}
               onCardClick={handleCardClick}
               onCardDelete={handleDeleteCard}
-              searchTerm={savedSearchTerm}
+              searchTerm={debouncedSearchTerm} // Use debounced term for display filtering
             />
           )
         ) : (
@@ -521,23 +566,23 @@ const OptimizedCardWallet: React.FC = () => {
 
       {/* Search Bar - Appears above footer when active */}
       <SearchBar
-        searchTerm={searchValue}
-        onSearchChange={(e) => handleSearchChange(e.target.value)}
-        onClearSearch={handleClearSearch}
-        sortBy={sortBy}
-        onSortChange={(option) => {
+        searchTerm={searchInputValue} // Bind to inputValue for immediate UI response
+        onSearchChange={handleSearchBarInputChange} // Use wrapped handler
+        onClearSearch={handleClearSearchFromHook} // Use handler from useSearch
+        sortBy={sortBy} // This is from useCards
+        onSortChange={(option) => { // This is from useCards
           setSortOption(option);
           setSortPreference(option);
         }}
-        showSearch={savedShowSearch}
+        showSearch={showSearchFromHook} // Use showSearch from useSearch
       />
 
       {/* Footer */}
       <Footer
         onUserClick={handleUserIconClick}
-        onSearchToggle={handleSearchToggle}
+        onSearchToggle={handleSearchToggleFromHook} // Use handler from useSearch
         onAddClick={handleOpenAddModal}
-        showSearch={savedShowSearch}
+        showSearch={showSearchFromHook} // Use showSearch from useSearch for UI consistency
         sortBy={sortBy}
       />
 

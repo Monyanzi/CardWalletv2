@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Star, Trash2 } from '../utils/icons';
 import { Card } from '../types';
+import ConfirmationDialog from './ConfirmationDialog'; // Import ConfirmationDialog
 import { PS5_BLUE } from '../utils/constants';
 import { PlaceholderAvatar, PlaceholderLogo } from './PlaceholderElements';
 import { useTheme } from '../context/ThemeContext';
@@ -13,10 +14,29 @@ interface CardListItemProps {
 
 const CardListItem: React.FC<CardListItemProps> = ({ card, onClick, onDelete }) => {
   const { darkMode } = useTheme();
+  const [showConfirmDialog, setShowConfirmDialog] = useState(false); // State to control visibility of the delete confirmation dialog
+
+  // Opens the delete confirmation dialog
+  const handleDeleteClick = (e: React.MouseEvent) => {
+    e.stopPropagation(); // Prevent triggering onClick for the card itself
+    setShowConfirmDialog(true); // Set state to show the dialog
+  };
+
+  // Called when deletion is confirmed from the dialog
+  const handleConfirmDelete = () => {
+    onDelete(card.id); // Execute the actual delete operation
+    setShowConfirmDialog(false); // Close the dialog
+  };
+
+  // Called when deletion is cancelled from the dialog
+  const handleCancelDelete = () => {
+    setShowConfirmDialog(false); // Close the dialog
+  };
 
   return (
-    <div
-      className={`rounded-lg shadow-md overflow-hidden transition-all duration-200 ease-out cursor-pointer ${
+    <> {/* Fragment to wrap CardListItem and ConfirmationDialog */}
+      <div
+        className={`rounded-lg shadow-md overflow-hidden transition-all duration-200 ease-out cursor-pointer ${
         darkMode 
           ? 'bg-gray-800 border border-gray-700 hover:border-gray-600' 
           : 'bg-white border border-gray-200 hover:border-gray-300'
@@ -40,7 +60,7 @@ const CardListItem: React.FC<CardListItemProps> = ({ card, onClick, onDelete }) 
           {/* Delete button */}
           <button
             className="absolute top-2 right-2 p-1.5 rounded-full bg-black bg-opacity-20 hover:bg-opacity-40 text-white transition-colors z-10 focus:outline-none focus:ring-1 focus:ring-white"
-            onClick={(e) => { e.stopPropagation(); onDelete(card.id); }}
+            onClick={handleDeleteClick} // Use new handler
             aria-label={`Delete ${card.name}`}
           >
             <Trash2 size={16} />
@@ -80,6 +100,26 @@ const CardListItem: React.FC<CardListItemProps> = ({ card, onClick, onDelete }) 
         </div>
       </div>
     </div>
+
+    {/* Confirmation Dialog for Deletion */}
+    {showConfirmDialog && (
+      <ConfirmationDialog
+        isOpen={showConfirmDialog}
+        title="Confirm Deletion"
+        message={
+          <>
+            Are you sure you want to delete the card "<strong>{card.name}</strong>"?
+            This action cannot be undone.
+          </>
+        }
+        confirmText="Delete"
+        cancelText="Cancel"
+        onConfirm={handleConfirmDelete}
+        onCancel={handleCancelDelete}
+        isDestructive={true}
+      />
+    )}
+    </>
   );
 };
 

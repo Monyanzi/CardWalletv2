@@ -36,15 +36,15 @@ const OptimizedAddCardModal: React.FC<AddCardModalProps> = ({
 }) => {
   const { darkMode } = useTheme();
   const [showCustomType, setShowCustomType] = useState(false);
-  const [formErrors, setFormErrors] = useState<Record<string, string>>({});
-  const [formTouched, setFormTouched] = useState<Record<string, boolean>>({});
-  
-  // Initialize local state when modal opens
+  // State to track if a submission attempt has been made.
+  // This is used to trigger error visibility on all fields if the form is submitted with invalid data.
+  const [formSubmitted, setFormSubmitted] = useState(false);
+
+  // Initialize local state when modal opens or closes
   useEffect(() => {
     if (isOpen) {
       setShowCustomType(false);
-      setFormErrors({});
-      setFormTouched({});
+      setFormSubmitted(false); // Reset submit attempt state when modal opens
     }
   }, [isOpen]);
 
@@ -57,11 +57,7 @@ const OptimizedAddCardModal: React.FC<AddCardModalProps> = ({
       ...newCard,
       [name]: value,
     });
-    
-    // Mark field as touched
-    if (!formTouched[name]) {
-      setFormTouched(prev => ({ ...prev, [name]: true }));
-    }
+    // Marking field as touched is no longer handled by this modal's state.
   };
   
   // Dedicated handler for checkbox changes
@@ -121,38 +117,51 @@ const OptimizedAddCardModal: React.FC<AddCardModalProps> = ({
   
   // Check if required fields are filled and valid
   const requiredFieldsFilled = useCallback(() => {
-    // Check for validation errors
-    const hasErrors = Object.keys(formErrors).some(key => !!formErrors[key]);
-    if (hasErrors) return false;
-    
-    // Check required fields
+    // Core field presence checks
     if (isBusinessCardType) {
-      return !!newCard.name && !!newCard.company;
+      if (!newCard.name || !newCard.company) return false;
+    } else {
+      if (!newCard.company) return false;
     }
-    return !!newCard.company; // For non-business cards
-  }, [isBusinessCardType, newCard.name, newCard.company, formErrors]);
+
+    // Specific validation function checks for relevant fields
+    // These functions return an error string if invalid, null if valid or not applicable
+    if (validateEmail(newCard.email || '') !== null) return false;
+    if (validateUrl(newCard.website || '') !== null) return false;
+    if (validateUrl(newCard.linkedinUrl || '') !== null) return false; // Assuming linkedinUrl uses the same URL validation
+    if (validatePhone(newCard.phone || '') !== null) return false;
+    if (validatePhone(newCard.mobile || '') !== null) return false;
+
+    return true; // All checks passed
+  }, [isBusinessCardType, newCard, validateEmail, validateUrl, validatePhone]); // Added newCard and validation functions to dependency array
   
   // Handle form submission
   const handleSubmit = () => {
-    // Check all required fields are filled and valid
-    const requiredFields = isBusinessCardType ? ['name', 'company'] : ['company'];
-    
-    // Mark all required fields as touched
-    const newTouched = { ...formTouched };
-    requiredFields.forEach(field => {
-      newTouched[field] = true;
-    });
-    setFormTouched(newTouched);
-    
+    // Mark that a submission attempt has been made.
+    // This will trigger validation messages on fields that haven't been touched yet
+    // by passing forceShowError={true} to them.
+    setFormSubmitted(true);
+
     if (requiredFieldsFilled()) {
-      onAddCard();
+      onAddCard(); // Proceed with adding the card if all validations pass
+      // formSubmitted will be reset by the useEffect hook when the modal closes or reopens.
+    } else {
+      // Log for debugging; actual user feedback is through field-level error messages.
+      console.log("Form is invalid. Please check the fields. Errors should now be visible.");
     }
+  };
+
+  // Custom onClose handler for the Modal component.
+  // Ensures formSubmitted state is reset when the modal is explicitly closed.
+  const handleCloseModal = () => {
+    setFormSubmitted(false); // Reset submission attempt state
+    onClose(); // Call the original onClose handler
   };
 
   return (
     <Modal
       isOpen={isOpen}
-      onClose={onClose}
+      onClose={handleCloseModal} // Use custom handler
       title="Add New Card"
       footer={
         isScanning ? (
@@ -219,6 +228,7 @@ const OptimizedAddCardModal: React.FC<AddCardModalProps> = ({
                 options={cardTypes}
                 placeholder="Select card type"
                 required
+                forceShowError={formSubmitted} // Pass submit attempt state
               />
               
               {/* My Card Checkbox - always visible */}
@@ -242,6 +252,7 @@ const OptimizedAddCardModal: React.FC<AddCardModalProps> = ({
                     required
                     minLength={2}
                     maxLength={50}
+                    forceShowError={formSubmitted} // Pass submit attempt state
                   />
                   <InputField
                     label="Company"
@@ -252,6 +263,7 @@ const OptimizedAddCardModal: React.FC<AddCardModalProps> = ({
                     required
                     minLength={2}
                     maxLength={50}
+                    forceShowError={formSubmitted} // Pass submit attempt state
                   />
                   <InputField
                     label="Position"
@@ -259,6 +271,7 @@ const OptimizedAddCardModal: React.FC<AddCardModalProps> = ({
                     value={newCard.position}
                     onChange={handleInputChange}
                     placeholder="(Optional) Job title"
+                    forceShowError={formSubmitted}
                   />
                   <InputField
                     label="Email"
@@ -268,6 +281,7 @@ const OptimizedAddCardModal: React.FC<AddCardModalProps> = ({
                     onChange={handleInputChange}
                     placeholder="(Optional) Email address"
                     validate={validateEmail}
+                    forceShowError={formSubmitted}
                   />
                   <InputField
                     label="Phone"
@@ -277,6 +291,7 @@ const OptimizedAddCardModal: React.FC<AddCardModalProps> = ({
                     onChange={handleInputChange}
                     placeholder="(Optional) Phone number"
                     validate={validatePhone}
+                    forceShowError={formSubmitted}
                   />
                   <InputField
                     label="Mobile"
@@ -286,6 +301,7 @@ const OptimizedAddCardModal: React.FC<AddCardModalProps> = ({
                     onChange={handleInputChange}
                     placeholder="(Optional) Mobile number"
                     validate={validatePhone}
+                    forceShowError={formSubmitted}
                   />
                   <InputField
                     label="Website"
@@ -295,6 +311,7 @@ const OptimizedAddCardModal: React.FC<AddCardModalProps> = ({
                     onChange={handleInputChange}
                     placeholder="(Optional) www.example.com"
                     validate={validateUrl}
+                    forceShowError={formSubmitted}
                   />
                   <InputField
                     label="LinkedIn Profile URL"
@@ -304,6 +321,7 @@ const OptimizedAddCardModal: React.FC<AddCardModalProps> = ({
                     onChange={handleInputChange}
                     placeholder="(Optional) linkedin.com/in/yourprofile"
                     validate={validateUrl}
+                    forceShowError={formSubmitted}
                   />
                   <InputField
                     label="Address"
@@ -311,6 +329,7 @@ const OptimizedAddCardModal: React.FC<AddCardModalProps> = ({
                     value={newCard.address}
                     onChange={handleInputChange}
                     placeholder="(Optional) Street address"
+                    forceShowError={formSubmitted}
                   />
                 </>
               ) : (
@@ -324,6 +343,7 @@ const OptimizedAddCardModal: React.FC<AddCardModalProps> = ({
                     required
                     minLength={2}
                     maxLength={50}
+                    forceShowError={formSubmitted} // Pass submit attempt state
                   />
                   <InputField
                     label="Identifier / Member No."
@@ -331,6 +351,7 @@ const OptimizedAddCardModal: React.FC<AddCardModalProps> = ({
                     value={newCard.identifier}
                     onChange={handleInputChange}
                     placeholder="(Optional)"
+                    forceShowError={formSubmitted}
                   />
                 </>
               )}
@@ -343,6 +364,7 @@ const OptimizedAddCardModal: React.FC<AddCardModalProps> = ({
                   value={newCard.customType || ''}
                   onChange={handleInputChange}
                   placeholder="Enter custom card type"
+                  forceShowError={formSubmitted} // Pass submit attempt state
                 />
               )}
               
