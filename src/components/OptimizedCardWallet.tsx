@@ -1,4 +1,4 @@
-import React, { useState, lazy, Suspense, useEffect } from 'react';
+import React, { useState, lazy, Suspense, useEffect, useCallback } from 'react';
 import { useTheme } from '../context/ThemeContext';
 import { useUserPreferences } from '../context/UserPreferencesContext';
 import { useAuth } from '../AuthContext';
@@ -38,6 +38,9 @@ const OptimizedCardWallet: React.FC = () => {
   const auth = useAuth();
   const navigate = useNavigate();
   const { darkMode, listView } = useTheme();
+  
+  // Get custom hook state and methods - MOVED EARLY to avoid initialization issues
+  const { feedbackMessage, showFeedback, clearFeedback } = useFeedback();
   
   // Get user preferences from context
   const {
@@ -127,9 +130,6 @@ const OptimizedCardWallet: React.FC = () => {
     }
   }, [lastSyncOutcome, showFeedback, clearLastSyncOutcome]);
   
-  // Get custom hook state and methods
-  const { feedbackMessage, showFeedback, clearFeedback } = useFeedback(); // Corrected to feedbackMessage
-
   // Local state for UI elements (MUST BE BEFORE EARLY RETURNS)
   const [isAddingCard, setIsAddingCard] = useState(false);
   const [isScanning, setIsScanning] = useState(false);
@@ -167,7 +167,7 @@ const OptimizedCardWallet: React.FC = () => {
   }
   
   // --- Event Handlers ---
-  const handleAddCard = () => {
+  const handleAddCard = useCallback(() => {
     if (!newCard.name && (newCard.type === 'business' || newCard.isMyCard)) {
       showFeedback('Name is required for business cards', 'error');
       return;
@@ -182,7 +182,7 @@ const OptimizedCardWallet: React.FC = () => {
     setNewCard({ ...INITIAL_CARD_STATE });
     setIsAddingCard(false);
     showFeedback('Card added successfully!', 'success');
-  };
+  }, [newCard, addCard, showFeedback]);
   
   const handleUpdateField = (fieldName: string, value: string | boolean) => {
     // Update the editing card field
