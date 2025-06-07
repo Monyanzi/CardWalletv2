@@ -1,6 +1,6 @@
 import React from 'react';
 import { Card } from '../types';
-import Modal from '../ui/Modal'; // Import the generic Modal component
+import Modal from './ui/Modal'; // Fixed import path from ../ui/Modal to ./ui/Modal
 
 interface ConflictResolutionModalProps {
   isOpen: boolean;
