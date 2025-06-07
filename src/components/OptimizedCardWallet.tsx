@@ -140,6 +140,7 @@ const OptimizedCardWallet: React.FC = () => {
   const [isDeletingAccount, setIsDeletingAccount] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [cardToDelete, setCardToDelete] = useState<Card | number | null>(null);
+  const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [newCard, setNewCard] = useState<Omit<Card, 'id'>>({
     ...INITIAL_CARD_STATE,
     verified: true,
@@ -329,17 +330,18 @@ const OptimizedCardWallet: React.FC = () => {
     setIsScanning(scanState);
   };
   
-  // Simplified user icon click - just navigate to login if not authenticated
+  // Fixed user icon click handler
   const handleUserIconClick = () => {
     if (!auth.isAuthenticated) {
       navigate('/login');
     } else {
-      // Show logout confirmation directly instead of a menu
-      setShowLogoutConfirm(true);
+      // Toggle profile menu instead of directly showing logout
+      setShowProfileMenu(prev => !prev);
     }
   };
 
   const handleLogoutClick = () => {
+    setShowProfileMenu(false);
     setShowLogoutConfirm(true);
   };
   
@@ -372,6 +374,7 @@ const OptimizedCardWallet: React.FC = () => {
 
   // Handler to open the delete account confirmation
   const handleDeleteAccountClick = () => {
+    setShowProfileMenu(false);
     setShowDeleteAccountConfirm(true);
   };
 
@@ -586,17 +589,39 @@ const OptimizedCardWallet: React.FC = () => {
         sortBy={sortBy}
       />
 
-      {/* Logout Button - moved to top right corner */}
-      {auth.isAuthenticated && (
-        <div className="fixed top-4 right-4 z-30">
-          <button
-            className="p-2 rounded-full shadow-lg transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-900 focus:ring-red-500 bg-red-700 hover:bg-red-600 text-white"
-            onClick={handleLogoutClick}
-            aria-label="Logout"
-          >
-            <LogOut size={18} />
-          </button>
+      {/* Profile Menu - appears when user clicks profile icon */}
+      {auth.isAuthenticated && showProfileMenu && (
+        <div className="fixed top-16 right-4 z-40">
+          <div className={`${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} border rounded-lg shadow-lg p-2 min-w-48`}>
+            <div className={`px-3 py-2 border-b ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}>
+              <p className={`text-sm font-medium ${darkMode ? 'text-gray-200' : 'text-gray-800'}`}>
+                {auth.email}
+              </p>
+            </div>
+            <button
+              className={`w-full text-left px-3 py-2 text-sm ${darkMode ? 'text-gray-300 hover:bg-gray-700' : 'text-gray-700 hover:bg-gray-100'} rounded flex items-center`}
+              onClick={handleLogoutClick}
+            >
+              <LogOut size={16} className="mr-2" />
+              Logout
+            </button>
+            <button
+              className={`w-full text-left px-3 py-2 text-sm text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20 rounded flex items-center`}
+              onClick={handleDeleteAccountClick}
+            >
+              <Trash2 size={16} className="mr-2" />
+              Delete Account
+            </button>
+          </div>
         </div>
+      )}
+
+      {/* Click outside to close profile menu */}
+      {showProfileMenu && (
+        <div 
+          className="fixed inset-0 z-30" 
+          onClick={() => setShowProfileMenu(false)}
+        />
       )}
       
       {/* Conflict Resolution Modal */}
