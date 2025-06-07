@@ -75,6 +75,7 @@ export const useCards = () => {
     const [showConflictModal, setShowConflictModal] = useState<boolean>(false);
     const [currentConflictIndex, setCurrentConflictIndex] = useState<number>(0);
     const [cardsToUploadDirectly, setCardsToUploadDirectly] = useState<Omit<Card, 'id' | 'userId'>[]>([]);
+    const [lastSyncOutcome, setLastSyncOutcome] = useState<'success' | 'partial_failure' | null>(null);
     
     // State for tracking loading and error states
     const [isLoading, setIsLoading] = useState(false);
@@ -327,7 +328,12 @@ export const useCards = () => {
         });
 
         if (!response.ok) {
-          const errorBody = await response.text(); // Or response.json() if backend sends structured errors
+          const errorBody = await response.text();
+          if (response.status === 409) { // Conflict
+            throw new Error(`DUPLICATE_CARD: A card with this name or key details already exists. ${errorBody}`);
+          } else if (response.status === 422) { // Unprocessable Entity
+            throw new Error(`VALIDATION_ERROR: ${errorBody}`);
+          }
           throw new Error(`Failed to add card: ${response.status} ${response.statusText} - ${errorBody}`);
         }
         const addedCard = await response.json();
@@ -419,6 +425,12 @@ export const useCards = () => {
 
         if (!response.ok) {
           const errorBody = await response.text();
+          if (response.status === 409) { // Conflict
+            throw new Error(`UPDATE_CONFLICT: This update conflicts with existing data. ${errorBody}`);
+          } else if (response.status === 422) { // Unprocessable Entity
+            throw new Error(`VALIDATION_ERROR: ${errorBody}`);
+          }
+          // Note: 404 is implicitly handled by the generic error here, UI might already catch it.
           throw new Error(`Failed to update card: ${response.status} ${response.statusText} - ${errorBody}`);
         }
         const updatedCardFromApi = await response.json();
@@ -561,48 +573,64 @@ export const useCards = () => {
             setShowConflictModal(true);
             console.log(`Found ${detectedConflictsUpdate.length} conflicts and ${newCardsForServerUpdate.length} new cards. Showing conflict modal.`);
           } else if (newCardsForServerUpdate.length > 0) {
-            console.log(`No conflicts. Uploading ${newCardsForServerUpdate.length} new cards.`);
-            let cardsSyncedCount = 0;
+            console.log(`No conflicts. Uploading ${newCardsForServerUpdate.length} new cards directly.`);
+            let successfullyUploadedCount = 0;
+            let directUploadFailed = false;
             for (const cardToUpload of newCardsForServerUpdate) {
               try {
                 await addCard(cardToUpload);
-                cardsSyncedCount++;
+                successfullyUploadedCount++;
               } catch (error) {
-                console.error('Error syncing new local card:', cardToUpload.name, error);
+                console.error('Error syncing new local card directly:', cardToUpload.name, error);
+                directUploadFailed = true;
               }
             }
-            if (cardsSyncedCount > 0) {
-              console.log(`Successfully synced ${cardsSyncedCount} new cards to server.`);
+
+            setLastSyncOutcome(directUploadFailed ? 'partial_failure' : 'success');
+
+            if (!directUploadFailed) {
+              localStorage.removeItem(LOCAL_UNAUTH_CARDS_KEY);
+              console.log('Cleared local unauthenticated cards after successful direct upload of all new cards.');
+            } else {
+              console.warn('NOT clearing local unauthenticated cards due to direct upload failures.');
             }
-            localStorage.removeItem(LOCAL_UNAUTH_CARDS_KEY); // Clear after successful sync
-            console.log('Cleared local unauthenticated cards after uploading new cards.');
-          } else {
+            console.log(`Successfully synced ${successfullyUploadedCount} out of ${newCardsForServerUpdate.length} new cards to server (direct upload).`);
+
+          } else { // No conflicts and no new cards to upload from local
             localStorage.removeItem(LOCAL_UNAUTH_CARDS_KEY);
-            console.log('No conflicts or new cards to upload. Local cards were identical or none. Cleared local unauthenticated cards.');
+            console.log('No conflicts or new cards to upload from local. Local cards were identical or none. Cleared local unauthenticated cards.');
+            setLastSyncOutcome(null); // No sync actions performed, so no specific outcome.
           }
-        } else {
+        } else { // No local cards to sync initially
           localStorage.removeItem(LOCAL_UNAUTH_CARDS_KEY); // Clean up if it was empty or invalid
-          console.log('No valid local unauthenticated cards found after parsing. Cleared storage if it existed.');
+          console.log('No valid local unauthenticated cards found to sync. Cleared storage if it existed.');
+          setLastSyncOutcome(null);
         }
-      } else {
+      } else { // No localUnauthCardsJson string in localStorage
         console.log('No local unauthenticated cards key found in localStorage. Nothing to sync.');
+        setLastSyncOutcome(null);
       }
     } else {
-      // Optional: console.log('[useCards.ts] syncLocalCards: User not authenticated or initial load in progress. Skipping sync.');
+      // User not authenticated or initial load in progress.
+      // console.log('[useCards.ts] syncLocalCards: User not authenticated or initial load in progress. Skipping sync.');
     }
-  }, [auth.isAuthenticated, auth.userId, cards, addCard, isLoading]);
+  }, [auth.isAuthenticated, auth.userId, cards, addCard, isLoading, setLastSyncOutcome]);
 
     // Handler for when all conflicts are resolved and/or new cards uploaded
-    const finalizeSync = useCallback(() => {
-      localStorage.removeItem(LOCAL_UNAUTH_CARDS_KEY);
-      console.log('Finalized sync: Cleared local unauthenticated cards.');
+    const finalizeSync = useCallback((syncFailed: boolean) => {
+      // lastSyncOutcome should have been set by processNextConflictOrFinalize before this is called if uploads were attempted.
+      if (!syncFailed) {
+        localStorage.removeItem(LOCAL_UNAUTH_CARDS_KEY);
+        console.log('Finalized sync: All uploads successful (post-conflict). Cleared local unauthenticated cards.');
+      } else {
+        console.warn('Finalized sync: Some uploads failed (post-conflict). Local unauthenticated cards NOT cleared.');
+      }
       setShowConflictModal(false);
-      setShowConflictModal(false); // Ensure modal is hidden
       setConflictPairs([]);
-      setCardsToUploadDirectly([]);
+      setCardsToUploadDirectly([]); // Cleared after outcome is determined
       setCurrentConflictIndex(0);
-      console.log('Sync process finalized.');
-    }, []); // No dependencies needed as it only resets state
+      console.log('Sync process finalized. Modal closed, state reset.');
+    }, [setShowConflictModal, setConflictPairs, setCardsToUploadDirectly, setCurrentConflictIndex]);
 
     const processNextConflictOrFinalize = useCallback(async () => {
       const nextIndex = currentConflictIndex + 1;
@@ -610,22 +638,30 @@ export const useCards = () => {
         setCurrentConflictIndex(nextIndex);
       } else {
         // All conflicts processed, now upload cards marked for direct upload
-        if (cardsToUploadDirectly.length > 0) {
-          console.log(`Uploading ${cardsToUploadDirectly.length} cards directly.`);
+        let anyUploadFailed = false;
+        const cardsWereAttempted = cardsToUploadDirectly.length > 0;
+
+        if (cardsWereAttempted) {
+          console.log(`Uploading ${cardsToUploadDirectly.length} cards directly after conflict resolution.`);
           let successfullyUploadedCount = 0;
           for (const cardToUpload of cardsToUploadDirectly) {
             try {
-              await addCard(cardToUpload); // addCard expects Omit<Card, 'id' | 'userId'>
+              await addCard(cardToUpload);
               successfullyUploadedCount++;
             } catch (error) {
               console.error('Error uploading card during conflict finalization:', cardToUpload.name, error);
+              anyUploadFailed = true;
             }
           }
           console.log(`Successfully uploaded ${successfullyUploadedCount} out of ${cardsToUploadDirectly.length} cards after conflict resolution.`);
+          setLastSyncOutcome(anyUploadFailed ? 'partial_failure' : 'success');
         }
-        finalizeSync();
+        // If cardsWereAttempted is false, we don't set lastSyncOutcome here,
+        // as it might have been set by syncLocalCards (direct upload part) or should remain null.
+
+        finalizeSync(anyUploadFailed); // Pass the failure status for localStorage clearing logic
       }
-    }, [currentConflictIndex, conflictPairs, cardsToUploadDirectly, addCard, finalizeSync]);
+    }, [currentConflictIndex, conflictPairs, cardsToUploadDirectly, addCard, finalizeSync, setLastSyncOutcome]);
 
     const handleConflictResolution = useCallback(async (choice: 'local' | 'server') => {
       if (!conflictPairs[currentConflictIndex]) return;
@@ -653,11 +689,16 @@ export const useCards = () => {
 
   // Effect to trigger sync when user logs in, is not currently loading, and server cards might be populated
   useEffect(() => {
-    if (auth.isAuthenticated && auth.userId && !isLoading && cards && !hasSyncedRef.current) {
+    // Ensure cards are loaded (or attempted to load) before trying to sync.
+    // isLoading refers to the initial load of cards for the authenticated user.
+    if (auth.isAuthenticated && auth.userId && !isLoading && !hasSyncedRef.current) {
+      // Check if `cards` state has been populated.
+      // `cards` could be empty if the user has no cards on the server or if there was an error.
+      // The critical part is that `loadCards` has finished (isLoading is false).
       console.log('[useCards.ts] Conditions met for sync, scheduling syncLocalCards.');
       const timerId = setTimeout(() => {
         console.log('[useCards.ts] Timer fired, attempting to call syncLocalCards.');
-        syncLocalCards();
+        syncLocalCards(); // syncLocalCards will now set the outcome
         hasSyncedRef.current = true;
       }, 1500);
       return () => clearTimeout(timerId);
@@ -667,8 +708,13 @@ export const useCards = () => {
   useEffect(() => {
     if (!auth.isAuthenticated) {
       hasSyncedRef.current = false; // Reset sync flag on logout
+      setLastSyncOutcome(null); // Clear sync outcome on logout
     }
-  }, [auth.isAuthenticated]);
+  }, [auth.isAuthenticated, setLastSyncOutcome]);
+
+  const clearLastSyncOutcome = useCallback(() => {
+    setLastSyncOutcome(null);
+  }, [setLastSyncOutcome]);
   
   const returnedObject = {
     cards,
@@ -688,14 +734,17 @@ export const useCards = () => {
     updateCardField,
     isLoading,
     loadError,
-    // Conflict resolution state and handlers (to be expanded)
+    // Conflict resolution state and handlers
     showConflictModal,
     conflictPairs,
     currentConflictIndex,
-    finalizeSync,
+    finalizeSync, // Note: finalizeSync itself doesn't set outcome, it's set before/during calling it
     handleConflictResolution,
     skipConflict,
-    processNextConflictOrFinalize
+    processNextConflictOrFinalize,
+    // Sync outcome
+    lastSyncOutcome,
+    clearLastSyncOutcome
   };
   console.log('[useCards.ts] Hook executing - END, returning:', returnedObject);
   return returnedObject;

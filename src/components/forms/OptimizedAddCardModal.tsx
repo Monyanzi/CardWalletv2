@@ -36,15 +36,15 @@ const OptimizedAddCardModal: React.FC<AddCardModalProps> = ({
 }) => {
   const { darkMode } = useTheme();
   const [showCustomType, setShowCustomType] = useState(false);
-  const [formErrors, setFormErrors] = useState<Record<string, string>>({});
-  const [formTouched, setFormTouched] = useState<Record<string, boolean>>({});
-  
+  // formErrors and formTouched states are removed as per requirements.
+  // InputField components will handle their own error display.
+  // The submit button's enabled state will be determined by requiredFieldsFilled.
+
   // Initialize local state when modal opens
   useEffect(() => {
     if (isOpen) {
       setShowCustomType(false);
-      setFormErrors({});
-      setFormTouched({});
+      // Resetting formErrors and formTouched is no longer needed here
     }
   }, [isOpen]);
 
@@ -57,11 +57,7 @@ const OptimizedAddCardModal: React.FC<AddCardModalProps> = ({
       ...newCard,
       [name]: value,
     });
-    
-    // Mark field as touched
-    if (!formTouched[name]) {
-      setFormTouched(prev => ({ ...prev, [name]: true }));
-    }
+    // Marking field as touched is no longer handled by this modal's state.
   };
   
   // Dedicated handler for checkbox changes
@@ -121,31 +117,34 @@ const OptimizedAddCardModal: React.FC<AddCardModalProps> = ({
   
   // Check if required fields are filled and valid
   const requiredFieldsFilled = useCallback(() => {
-    // Check for validation errors
-    const hasErrors = Object.keys(formErrors).some(key => !!formErrors[key]);
-    if (hasErrors) return false;
-    
-    // Check required fields
+    // Core field presence checks
     if (isBusinessCardType) {
-      return !!newCard.name && !!newCard.company;
+      if (!newCard.name || !newCard.company) return false;
+    } else {
+      if (!newCard.company) return false;
     }
-    return !!newCard.company; // For non-business cards
-  }, [isBusinessCardType, newCard.name, newCard.company, formErrors]);
+
+    // Specific validation function checks for relevant fields
+    // These functions return an error string if invalid, null if valid or not applicable
+    if (validateEmail(newCard.email || '') !== null) return false;
+    if (validateUrl(newCard.website || '') !== null) return false;
+    if (validateUrl(newCard.linkedinUrl || '') !== null) return false; // Assuming linkedinUrl uses the same URL validation
+    if (validatePhone(newCard.phone || '') !== null) return false;
+    if (validatePhone(newCard.mobile || '') !== null) return false;
+
+    return true; // All checks passed
+  }, [isBusinessCardType, newCard, validateEmail, validateUrl, validatePhone]); // Added newCard and validation functions to dependency array
   
   // Handle form submission
   const handleSubmit = () => {
-    // Check all required fields are filled and valid
-    const requiredFields = isBusinessCardType ? ['name', 'company'] : ['company'];
-    
-    // Mark all required fields as touched
-    const newTouched = { ...formTouched };
-    requiredFields.forEach(field => {
-      newTouched[field] = true;
-    });
-    setFormTouched(newTouched);
-    
+    // Marking fields as touched is removed as formTouched state is removed.
+    // InputField components handle their own display state.
     if (requiredFieldsFilled()) {
       onAddCard();
+    } else {
+      // Optionally, provide general feedback if form is invalid,
+      // though individual InputFields should show specific errors.
+      console.log("Form is invalid. Please check the fields.");
     }
   };
 

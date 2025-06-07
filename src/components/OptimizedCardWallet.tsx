@@ -63,7 +63,9 @@ const OptimizedCardWallet: React.FC = () => {
     currentConflictIndex,
     handleConflictResolution,
     skipConflict,
-    processNextConflictOrFinalize
+    processNextConflictOrFinalize,
+    lastSyncOutcome, // Destructure new state
+    clearLastSyncOutcome // Destructure new function
   } = useCards();
   
   // Initialize search state from preferences
@@ -75,6 +77,25 @@ const OptimizedCardWallet: React.FC = () => {
       setSortOption(userSortPreference as any);
     }
   }, [userSortPreference, setSortOption]);
+
+  // Effect to show feedback based on sync outcome
+  useEffect(() => {
+    if (lastSyncOutcome === 'partial_failure') {
+      showFeedback(
+        "Some local cards could not be synced. They will be re-attempted on your next login.",
+        "warning",
+        5000 // Duration in ms
+      );
+      clearLastSyncOutcome(); // Reset the outcome so message doesn't reappear
+    } else if (lastSyncOutcome === 'success') {
+      showFeedback(
+        "Local cards synced successfully with the server.",
+        "success",
+        3000 // Duration in ms
+      );
+      clearLastSyncOutcome(); // Reset the outcome
+    }
+  }, [lastSyncOutcome, showFeedback, clearLastSyncOutcome]);
   
   // Get custom hook state and methods
   const { feedbackMessage, showFeedback, clearFeedback } = useFeedback(); // Corrected to feedbackMessage
