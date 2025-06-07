@@ -1,10 +1,12 @@
-import React, { useState, lazy, Suspense } from 'react';
+import React, { useState, lazy, Suspense, useEffect } from 'react';
 import { ArrowLeft, X, Save } from '../../utils/icons';
 import { Card, SelectOption } from '../../types';
 import { useTheme } from '../../context/ThemeContext';
 import Modal from '../ui/Modal';
 import IconButton from '../ui/IconButton';
 import { QRCodeSVG } from 'qrcode.react';
+import { useFeedback, FeedbackType } from '../../hooks/useFeedback'; // Import useFeedback
+import FeedbackBanner from '../ui/FeedbackBanner'; // Import FeedbackBanner
 
 // Lazy loaded components
 const BusinessCardDetails = lazy(() => import('./BusinessCardDetails'));
@@ -50,39 +52,28 @@ const OptimizedCardDetailModal: React.FC<CardDetailModalProps> = ({
   const [showBarcode, setShowBarcode] = useState(false);
   const [showScanner, setShowScanner] = useState(false);
   
+  // Instantiate useFeedback for managing modal-specific feedback messages.
+  // These messages will be displayed using the FeedbackBanner component within this modal.
+  const { feedbackMessage, showFeedback, clearFeedback } = useFeedback();
+
   const modalTitle = isEditing 
     ? 'Edit Card' 
     : (card.name || card.company || 'Card Details');
   
+  // Effect to automatically clear any displayed feedback message when the modal is closed
+  // or when the card being viewed changes (though card change causing re-render might also clear it).
+  useEffect(() => {
+    if (!isOpen) {
+      clearFeedback();
+    }
+  }, [isOpen, clearFeedback]);
+
   const handleScanSuccess = (data: string, type: 'qr' | 'barcode') => {
     onUpdateField(type === 'qr' ? 'qrCodeData' : 'barcodeData', data);
-    showFeedback(`${type === 'qr' ? 'QR' : 'Barcode'} data scanned successfully!`);
+    // Display success message using the feedback system.
+    // The FeedbackBanner component will render this message accessibly.
+    showFeedback(`${type === 'qr' ? 'QR' : 'Barcode'} data scanned successfully!`, 'success');
     setShowScanner(false);
-  };
-  
-  // Show feedback message
-  const showFeedback = (message: string, type: 'success' | 'error' | 'warning' | 'info' = 'info', duration: number = 3000) => {
-    // Create a temporary div for feedback
-    const feedbackDiv = document.createElement('div');
-    let bgColor = 'bg-blue-600'; // Default for info
-    if (type === 'success') bgColor = 'bg-green-500';
-    if (type === 'error') bgColor = 'bg-red-500';
-    if (type === 'warning') bgColor = 'bg-yellow-500';
-
-    feedbackDiv.className = `fixed bottom-4 left-1/2 transform -translate-x-1/2 px-4 py-2 ${bgColor} text-white rounded-md shadow-lg z-[10000]`; // Increased z-index
-    feedbackDiv.textContent = message;
-    document.body.appendChild(feedbackDiv);
-    
-    // Remove after specified duration
-    setTimeout(() => {
-      feedbackDiv.style.opacity = '0';
-      feedbackDiv.style.transition = 'opacity 0.5s ease-out';
-      setTimeout(() => {
-        if (document.body.contains(feedbackDiv)) {
-          document.body.removeChild(feedbackDiv);
-        }
-      }, 500); // Wait for fade out animation
-    }, duration);
   };
   
   // Return null early if modal is closed
@@ -187,7 +178,18 @@ const OptimizedCardDetailModal: React.FC<CardDetailModalProps> = ({
         {renderHeader()}
       </div>
       
-      <div className="p-4">
+      {/* Area for displaying feedback messages within the modal */}
+      {feedbackMessage && (
+        <div className="px-4 pb-2 sticky top-0 bg-inherit z-10"> {/* Sticky to keep visible if content scrolls */}
+          <FeedbackBanner
+            message={feedbackMessage.text}
+            type={feedbackMessage.type}
+            onClose={clearFeedback}
+          />
+        </div>
+      )}
+
+      <div className="p-4 pt-0"> {/* Adjusted padding top if feedback is shown */}
         {/* Card Content */}
         {showQRCode ? (
           <Suspense fallback={<LoadingFallback />}>
