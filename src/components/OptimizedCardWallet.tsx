@@ -487,6 +487,36 @@ const OptimizedCardWallet: React.FC = () => {
         </div>
       )}
 
+      {/* Profile Status Indicator - Show login status in header */}
+      <div className="fixed top-4 right-4 z-30">
+        {auth.isAuthenticated ? (
+          <div className="flex items-center space-x-2">
+            <span className={`text-sm ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>
+              Welcome, {auth.email?.split('@')[0]}
+            </span>
+            <button
+              className={`p-2 rounded-full shadow-lg transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 ${
+                darkMode ? 'focus:ring-offset-gray-900' : 'focus:ring-offset-white'
+              } focus:ring-blue-500 ${
+                darkMode ? 'bg-gray-700 hover:bg-gray-600 text-gray-200' : 'bg-white hover:bg-gray-50 text-gray-700'
+              } border ${darkMode ? 'border-gray-600' : 'border-gray-200'}`}
+              onClick={handleUserIconClick}
+              aria-label="Profile menu"
+            >
+              <LogOut size={18} />
+            </button>
+          </div>
+        ) : (
+          <button
+            className="px-4 py-2 rounded-md text-white font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-900 focus:ring-blue-500"
+            style={{ backgroundColor: PS5_BLUE }}
+            onClick={handleUserIconClick}
+          >
+            Sign In
+          </button>
+        )}
+      </div>
+
       <Suspense fallback={null}>
         {isAddingCard && (
           <OptimizedAddCardModal
