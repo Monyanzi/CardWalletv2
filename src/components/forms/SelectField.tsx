@@ -16,6 +16,7 @@ interface SelectFieldProps {
   helpText?: string;
   className?: string;
   hideLabel?: boolean;
+  forceShowError?: boolean; // New prop
 }
 
 const SelectField: React.FC<SelectFieldProps> = ({
@@ -32,6 +33,7 @@ const SelectField: React.FC<SelectFieldProps> = ({
   helpText,
   className = '',
   hideLabel = false,
+  forceShowError = false, // Default to false
 }) => {
   const { darkMode } = useTheme();
   const [touched, setTouched] = useState(false);
@@ -102,7 +104,8 @@ const SelectField: React.FC<SelectFieldProps> = ({
     const ids = [];
     
     if (helpText) ids.push(helpTextId);
-    if (touched && error) ids.push(errorId);
+    // Error message is described if it's visible
+    if ((touched || forceShowError) && error) ids.push(errorId);
     
     return ids.length > 0 ? ids.join(' ') : undefined;
   };
@@ -184,12 +187,12 @@ const SelectField: React.FC<SelectFieldProps> = ({
         </div>
       )}
       
-      {/* Error message */}
-      {touched && error && (
+      {/* Error message: Display if (touched or form submitted) and error exists */}
+      {(touched || forceShowError) && error && (
         <div 
           id={errorId} 
           className="mt-1 text-sm text-red-500" 
-          aria-live="assertive"
+          aria-live="assertive" // Announce errors to screen readers
         >
           {error}
         </div>

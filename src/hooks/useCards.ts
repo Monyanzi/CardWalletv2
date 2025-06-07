@@ -3,6 +3,10 @@ import { useAuth } from '../AuthContext';
 import { Card, CardType, GroupedCards } from '../types';
 import { CATEGORY_LABELS } from '../utils/constants';
 
+// Local storage keys
+const CARD_WALLET_APP_CARDS_KEY = 'cardWalletApp_cards';
+const CARD_WALLET_APP_MY_CARDS_KEY = 'cardWalletApp_myCards';
+const CARD_WALLET_APP_SHARED_CARDS_KEY = 'cardWalletApp_sharedCards';
 
 export type SortOption = 'name' | 'company' | 'none';
 
@@ -64,7 +68,23 @@ export const useCards = () => {
   try {
     console.log('[useCards.ts] CATEGORY_LABELS at hook start:', CATEGORY_LABELS);
     const auth = useAuth(); // Get auth context
-    const [cards, setCards] = useState<Card[]>([]); // This holds server cards for the authenticated user
+    // Initialize state from localStorage if available, otherwise default to empty array
+    const [cards, setCards] = useState<Card[]>(() => {
+      // Load cards from primary localStorage key upon hook initialization
+      if (typeof window !== 'undefined') {
+        try {
+          const storedCards = localStorage.getItem(CARD_WALLET_APP_CARDS_KEY);
+          if (storedCards) {
+            console.log('[useCards.ts] Initializing cards from cardWalletApp_cards');
+            return JSON.parse(storedCards); // Parse stored JSON data
+          }
+        } catch (error) {
+          console.error('Error loading cards from CARD_WALLET_APP_CARDS_KEY:', error);
+          localStorage.removeItem(CARD_WALLET_APP_CARDS_KEY); // Clear potentially corrupted data
+        }
+      }
+      return []; // Default to empty array if not in localStorage or if an error occurred
+    });
     const [selectedCard, setSelectedCard] = useState<Card | null>(null);
     const [editingCardData, setEditingCardData] = useState<Card | null>(null);
     const [originalEditingCard, setOriginalEditingCard] = useState<Card | null>(null);
@@ -240,6 +260,31 @@ export const useCards = () => {
   useEffect(() => {
     loadCards();
   }, [loadCards]);
+
+  // Effect to save cards to localStorage whenever they change
+  useEffect(() => {
+    // Persist cards to localStorage whenever the 'cards' state updates
+    if (typeof window !== 'undefined') {
+      try {
+        // Save the main cards list
+        console.log('[useCards.ts] Persisting cards to cardWalletApp_cards');
+        localStorage.setItem(CARD_WALLET_APP_CARDS_KEY, JSON.stringify(cards));
+
+        // Filter and save myCards (cards where isMyCard is true)
+        const myCardsList = cards.filter(card => card.isMyCard);
+        console.log('[useCards.ts] Persisting myCards to cardWalletApp_myCards');
+        localStorage.setItem(CARD_WALLET_APP_MY_CARDS_KEY, JSON.stringify(myCardsList));
+
+        // Filter and save sharedCards (cards where isMyCard is false)
+        const sharedCardsList = cards.filter(card => !card.isMyCard);
+        console.log('[useCards.ts] Persisting sharedCards to cardWalletApp_sharedCards');
+        localStorage.setItem(CARD_WALLET_APP_SHARED_CARDS_KEY, JSON.stringify(sharedCardsList));
+      } catch (error) {
+        console.error('Error saving cards to localStorage:', error);
+        // Consider how to handle errors, e.g., by notifying the user or logging to a monitoring service
+      }
+    }
+  }, [cards]);
 
   // Sort cards based on the current sort option
   const sortedCards = useMemo(() => {
@@ -695,13 +740,19 @@ export const useCards = () => {
       // Check if `cards` state has been populated.
       // `cards` could be empty if the user has no cards on the server or if there was an error.
       // The critical part is that `loadCards` has finished (isLoading is false).
-      console.log('[useCards.ts] Conditions met for sync, scheduling syncLocalCards.');
-      const timerId = setTimeout(() => {
-        console.log('[useCards.ts] Timer fired, attempting to call syncLocalCards.');
-        syncLocalCards(); // syncLocalCards will now set the outcome
-        hasSyncedRef.current = true;
-      }, 1500);
-      return () => clearTimeout(timerId);
+      // Ensure cards are not empty before attempting sync, to avoid syncing an empty list over potentially valid local unauth cards
+      // if cardWalletApp_cards was empty and loadCards hasn't populated yet.
+      if (cards && cards.length > 0) { // Added cards.length > 0 check
+        console.log('[useCards.ts] Conditions met for sync, scheduling syncLocalCards.');
+        const timerId = setTimeout(() => {
+          console.log('[useCards.ts] Timer fired, attempting to call syncLocalCards.');
+          syncLocalCards(); // syncLocalCards will now set the outcome
+          hasSyncedRef.current = true;
+        }, 1500);
+        return () => clearTimeout(timerId);
+      } else {
+        console.log('[useCards.ts] Conditions for sync met, but cards array is currently empty. Sync deferred.');
+      }
     }
   }, [auth.isAuthenticated, auth.userId, cards, isLoading, syncLocalCards]);
 
